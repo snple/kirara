@@ -1,0 +1,38 @@
+syntax = "proto3";
+package slots;
+
+option go_package = "github.com/snple/kirara/pb/slots;slots";
+
+import "generic_message.proto";
+
+message SyncUpdated {
+    // string id = 1;
+    int64 updated = 2;
+}
+
+service SyncService {
+    rpc SetDeviceUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetDeviceUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc WaitDeviceUpdated(pb.MyEmpty) returns (stream pb.MyBool) {}
+    rpc SetSlotUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetSlotUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetOptionUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetOptionUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetSourceUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetSourceUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetTagUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetTagUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetConstUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetConstUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetClassUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetClassUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetAttrUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetAttrUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetLogicUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetLogicUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetFnUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetFnUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc SetTagValueUpdated(SyncUpdated) returns (pb.MyBool) {}
+    rpc GetTagValueUpdated(pb.MyEmpty) returns (SyncUpdated) {}
+    rpc WaitTagValueUpdated(pb.MyEmpty) returns (stream pb.MyBool) {}
+}

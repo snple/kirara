@@ -1,0 +1,38 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/snple/kirara/pb;pb";
+
+message Fn {
+    string id = 1;
+    string device_id = 2;
+    string name = 3;
+    string desc = 4;
+    string tags = 5;
+    string type = 6;
+    string exec = 7;
+    string main = 8;
+    string config = 9;
+    sint32 link = 10;
+    sint32 status = 11;
+    sint32 debug = 12;
+    int64 created = 13;
+    int64 updated = 14;
+    int64 deleted = 15;
+}
+
+message Logic {
+    string id = 1;
+    string device_id = 2;
+    string name = 3;
+    string desc = 4;
+    string tags = 5;
+    string type = 6;
+    string exec = 7;
+    string main = 8;
+    string config = 9;
+    sint32 status = 10;
+    int64 created = 11;
+    int64 updated = 12;
+    int64 deleted = 13;
+}

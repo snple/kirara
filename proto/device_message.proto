@@ -1,0 +1,21 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/snple/kirara/pb;pb";
+
+message Device {
+    string id = 1;
+    string name = 2;
+    string desc = 3;
+    string tags = 4;
+    string type = 5;
+    string arch = 6;
+    string secret = 7;
+    string location = 8;
+    string config = 9;
+    sint32 link = 10;
+    sint32 status = 11;
+    int64 created = 12;
+    int64 updated = 13;
+    int64 deleted = 14;
+}
