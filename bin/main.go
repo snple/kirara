@@ -26,6 +26,8 @@ import (
 	"github.com/snple/kirara/http/api"
 	"github.com/snple/kirara/http/web"
 	"github.com/snple/kirara/plugins/emu"
+	"github.com/snple/kirara/plugins/gos7"
+	"github.com/snple/kirara/plugins/slim"
 	"github.com/snple/kirara/slot"
 	"github.com/snple/kirara/util"
 	"github.com/snple/kirara/util/compress/zstd"
@@ -318,6 +320,32 @@ func main() {
 		} else {
 			go engine.Run(static.Addr)
 		}
+	}
+
+	if config.Config.GoS7.Enable {
+		plugin, err := gos7.GoS7(es,
+			gos7.WithTickerInterval(time.Second*time.Duration(config.Config.GoS7.Interval)),
+			gos7.WithReadDataInterval(time.Second*time.Duration(config.Config.GoS7.ReadInterval)))
+		if err != nil {
+			log.Logger.Sugar().Fatalf("GoS7: %v", err)
+		}
+
+		go plugin.Start()
+		defer plugin.Stop()
+	}
+
+	if config.Config.Slim.Enable {
+		slim, err := slim.Slim(es,
+			slim.WithTickerInterval(time.Second*time.Duration(config.Config.Slim.Interval)),
+			slim.WithCacheTTL(time.Second*time.Duration(config.Config.Slim.CacheTTL)),
+			slim.WithBBolt(config.Config.Slim.BBolt),
+		)
+		if err != nil {
+			log.Logger.Sugar().Fatalf("Slim: %v", err)
+		}
+
+		go slim.Start()
+		defer slim.Stop()
 	}
 
 	if config.EnableEmu {

@@ -220,11 +220,11 @@ func (gs *GoS7Slot) startConn(source *pb.Source) {
 
 		conn.start()
 
+		conn.closeWG.Wait()
+
 		gs.lock.Lock()
 		delete(gs.conns, source.GetId())
 		gs.lock.Unlock()
-
-		conn.closeWG.Wait()
 	}()
 }
 

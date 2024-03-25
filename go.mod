@@ -14,11 +14,14 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/robinson/gos7 v0.0.0-20240315073918-1f14519e4846
 	github.com/snple/rgrpc v0.2.0
+	github.com/snple/slim v0.4.0
 	github.com/snple/types v0.2.1
 	github.com/stretchr/testify v1.8.4
 	github.com/uptrace/bun v1.1.17
 	github.com/uptrace/bun/dialect/sqlitedialect v1.1.17
 	github.com/uptrace/bun/extra/bundebug v1.1.17
+	github.com/yuin/gopher-lua v1.1.1
+	go.etcd.io/bbolt v1.3.9
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.21.0
 	google.golang.org/grpc v1.62.1

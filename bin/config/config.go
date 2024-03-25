@@ -120,6 +120,13 @@ type Slim struct {
 	CacheTTL int    `toml:"cache_ttl"`
 }
 
+type Lua struct {
+	Enable   bool   `toml:"enable"`
+	Interval int    `toml:"interval"`
+	BBolt    string `toml:"bbolt"`
+	CacheTTL int    `toml:"cache_ttl"`
+}
+
 func DefaultConfig() ConfigStruct {
 	return ConfigStruct{
 		Debug: false,

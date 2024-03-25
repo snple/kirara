@@ -89,6 +89,8 @@ func (c *Conn) start() {
 	readTicker := time.NewTicker(c.gs.dopts.readDataInterval)
 	defer readTicker.Stop()
 
+	defer c.cancel()
+
 	for {
 		select {
 		case <-c.ctx.Done():
