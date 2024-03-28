@@ -92,20 +92,6 @@ func Logics(items []*pb.Logic) {
 	}
 }
 
-func Option(item *pb.Option) {
-	if item != nil {
-		item.Created = item.Created / 1000
-		item.Updated = item.Updated / 1000
-		item.Deleted = item.Deleted / 1000
-	}
-}
-
-func Options(items []*pb.Option) {
-	for _, item := range items {
-		Option(item)
-	}
-}
-
 func Slot(item *pb.Slot) {
 	if item != nil {
 		item.Created = item.Created / 1000

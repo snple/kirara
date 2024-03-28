@@ -148,17 +148,6 @@ func attrToSlimObject(src *pb.Attr) map[string]slim.Object {
 	}
 }
 
-func optionToSlimObject(src *pb.Option) map[string]slim.Object {
-	return map[string]slim.Object{
-		"id":     &slim.String{Value: src.GetId()},
-		"name":   &slim.String{Value: src.GetName()},
-		"desc":   &slim.String{Value: src.GetDesc()},
-		"tags":   &slim.String{Value: src.GetTags()},
-		"type":   &slim.String{Value: src.GetType()},
-		"status": &slim.Int{Value: int64(src.GetStatus())},
-	}
-}
-
 func tagValueToSlimObject(src *pb.TagValue) map[string]slim.Object {
 	return map[string]slim.Object{
 		"id":      &slim.String{Value: src.GetId()},

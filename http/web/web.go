@@ -25,7 +25,6 @@ type WebService struct {
 	attr     *AttrService
 	logic    *LogicService
 	fn       *FnService
-	option   *OptionService
 
 	ctx     context.Context
 	cancel  func()
@@ -68,7 +67,6 @@ func NewWebService(es *edge.EdgeService, opts ...WebApiOption) (*WebService, err
 	s.attr = newAttrService(s)
 	s.logic = newLogicService(s)
 	s.fn = newFnService(s)
-	s.option = newOptionService(s)
 
 	return s, nil
 }
@@ -93,7 +91,6 @@ func (s *WebService) Register(router gin.IRouter) {
 	s.attr.register(router)
 	s.logic.register(router)
 	s.fn.register(router)
-	s.option.register(router)
 }
 
 func (s *WebService) Start() {
