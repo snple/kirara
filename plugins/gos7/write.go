@@ -5,142 +5,141 @@ import (
 	"fmt"
 
 	"github.com/robinson/gos7"
+	"github.com/snple/kirara/plugins/source"
 	utilbytes "github.com/snple/kirara/util/bytes"
 	"github.com/snple/kirara/util/datatype"
 )
 
-func (c *Conn) writeTag(id string, value string) (err error) {
+func (s *GoS7) writeTag(tag source.Tag, value string) (err error) {
 	defer func() {
 		if re := recover(); re != nil {
 			err = errors.New(fmt.Sprint(re))
 		}
 	}()
 
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-	if tag, ok := c.tags[id]; ok {
-		client := gos7.NewClient(c.client)
+	client := gos7.NewClient(s.client)
 
-		var writeBytes []byte
-		if datatype.DataType(tag.raw.DataType) == datatype.DataTypeBool {
-			bytes := make([]byte, tag.addr.Size)
+	addr := GetAddr(&tag)
 
-			switch tag.addr.Area {
-			case AreaPE:
-				err = client.AGReadEB(tag.addr.Address, tag.addr.Size, bytes)
-			case AreaPA:
-				err = client.AGReadAB(tag.addr.Address, tag.addr.Size, bytes)
-			case AreaMK:
-				err = client.AGReadMB(tag.addr.Address, tag.addr.Size, bytes)
-			case AreaDB:
-				err = client.AGReadDB(tag.addr.DB, tag.addr.Address, tag.addr.Size, bytes)
-			case AreaCT:
-				err = client.AGReadCT(tag.addr.Address, tag.addr.Size, bytes)
-			case AreaTM:
-				err = client.AGReadTM(tag.addr.Address, tag.addr.Size, bytes)
-			default:
-				err = fmt.Errorf("unsupport area: %v", tag.addr.Area)
-			}
+	var writeBytes []byte
+	if datatype.DataType(tag.Raw.GetDataType()) == datatype.DataTypeBool {
+		bytes := make([]byte, addr.Size)
 
-			if err != nil {
-				c.gs.logger().Sugar().Errorf("read error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
-					id, tag.addr.Area, tag.addr.DB, tag.addr.Address, tag.addr.Size, err)
-				return err
-			}
+		switch addr.Area {
+		case AreaPE:
+			err = client.AGReadEB(addr.Address, addr.Size, bytes)
+		case AreaPA:
+			err = client.AGReadAB(addr.Address, addr.Size, bytes)
+		case AreaMK:
+			err = client.AGReadMB(addr.Address, addr.Size, bytes)
+		case AreaDB:
+			err = client.AGReadDB(addr.DB, addr.Address, addr.Size, bytes)
+		case AreaCT:
+			err = client.AGReadCT(addr.Address, addr.Size, bytes)
+		case AreaTM:
+			err = client.AGReadTM(addr.Address, addr.Size, bytes)
+		default:
+			err = fmt.Errorf("unsupport area: %v", addr.Area)
+		}
 
-			boolValue := false
-			if value == "true" || value == "1" {
-				boolValue = true
-			}
+		if err != nil {
+			s.conn.Logger().Sugar().Errorf("read error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
+				tag.Raw.GetId(), addr.Area, addr.DB, addr.Address, addr.Size, err)
+			return err
+		}
 
-			bytes, err = func(bytes []byte) ([]byte, error) {
-				switch tag.addr.Format {
-				case "B", "C", "X", "I", "DBB", "DBC", "DBX":
-					if len(bytes) == 1 {
-						bytes[0] = utilbytes.SetBitFromBites(bytes[0], tag.addr.Bit, boolValue)
+		boolValue := false
+		if value == "true" || value == "1" {
+			boolValue = true
+		}
+
+		bytes, err = func(bytes []byte) ([]byte, error) {
+			switch addr.Format {
+			case "B", "C", "X", "I", "DBB", "DBC", "DBX":
+				if len(bytes) == 1 {
+					bytes[0] = utilbytes.SetBitFromBites(bytes[0], addr.Bit, boolValue)
+
+					return bytes, nil
+				}
+			case "W", "DBW":
+				if len(bytes) == 2 {
+					i := addr.Bit / 8
+					bit := addr.Bit % 8
+
+					if i <= 1 {
+						bytes[i] = utilbytes.SetBitFromBites(bytes[i], bit, boolValue)
 
 						return bytes, nil
 					}
-				case "W", "DBW":
-					if len(bytes) == 2 {
-						i := tag.addr.Bit / 8
-						bit := tag.addr.Bit % 8
+				}
+			case "D", "DBD", "DI", "DBDI", "REAL", "DBREAL":
+				if len(bytes) == 4 {
+					i := addr.Bit / 8
+					bit := addr.Bit % 8
 
-						if i <= 1 {
-							bytes[i] = utilbytes.SetBitFromBites(bytes[i], bit, boolValue)
+					if i <= 3 {
+						bytes[i] = utilbytes.SetBitFromBites(bytes[i], bit, boolValue)
 
-							return bytes, nil
-						}
-					}
-				case "D", "DBD", "DI", "DBDI", "REAL", "DBREAL":
-					if len(bytes) == 4 {
-						i := tag.addr.Bit / 8
-						bit := tag.addr.Bit % 8
-
-						if i <= 3 {
-							bytes[i] = utilbytes.SetBitFromBites(bytes[i], bit, boolValue)
-
-							return bytes, nil
-						}
+						return bytes, nil
 					}
 				}
-
-				return bytes, fmt.Errorf("set bit error when write, tag: %+v, bytes: %v", tag.raw, bytes)
-			}(bytes)
-
-			if err != nil {
-				return err
 			}
 
-			writeBytes = bytes
-		} else {
-			bytes, err := convertValueToBytes(&c.config, tag, value)
-			if err != nil {
-				c.gs.logger().Sugar().Errorf("convertValueToBytes err: %s, tag: %+v", err, tag.raw)
-				return err
-			}
+			return bytes, fmt.Errorf("set bit error when write, tag: %+v, bytes: %v", tag.Raw, bytes)
+		}(bytes)
 
-			if tag.addr.Size != len(bytes) {
-				c.gs.logger().Sugar().Errorf("tag.addr.Size(%v) != len(bytes)(%v), tag: %+v, ", tag.addr.Size, len(bytes), tag.raw)
-				return fmt.Errorf("tag.addr.Size(%v) != len(bytes)(%v), tag: %+v, ", tag.addr.Size, len(bytes), tag.raw)
-			}
-
-			writeBytes = bytes
+		if err != nil {
+			return err
 		}
 
-		if c.config.Debug {
-			c.gs.logger().Sugar().Debugf("write tag: %v %v %v %v -> %v", tag.raw.Id, tag.raw.Name, tag.raw.Address, writeBytes, value)
+		writeBytes = bytes
+	} else {
+		bytes, err := convertValueToBytes(&s.config, &tag, value)
+		if err != nil {
+			s.conn.Logger().Sugar().Errorf("convertValueToBytes err: %s, tag: %+v", err, tag.Raw)
+			return err
 		}
 
-		if len(writeBytes) > 0 {
-			switch tag.addr.Area {
-			case AreaPE:
-				err = client.AGWriteEB(tag.addr.Address, tag.addr.Size, writeBytes)
-			case AreaPA:
-				err = client.AGWriteAB(tag.addr.Address, tag.addr.Size, writeBytes)
-			case AreaMK:
-				err = client.AGWriteMB(tag.addr.Address, tag.addr.Size, writeBytes)
-			case AreaDB:
-				err = client.AGWriteDB(tag.addr.DB, tag.addr.Address, tag.addr.Size, writeBytes)
-			case AreaCT:
-				err = client.AGWriteCT(tag.addr.Address, tag.addr.Size, writeBytes)
-			case AreaTM:
-				err = client.AGWriteTM(tag.addr.Address, tag.addr.Size, writeBytes)
-			default:
-				err = fmt.Errorf("unsupport area: %v", tag.addr.Area)
-			}
-
-			if err != nil {
-				c.gs.logger().Sugar().Errorf("write error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
-					id, tag.addr.Area, tag.addr.DB, tag.addr.Address, tag.addr.Size, err)
-
-				return err
-			}
+		if addr.Size != len(bytes) {
+			s.conn.Logger().Sugar().Errorf("addr.Size(%v) != len(bytes)(%v), tag: %+v, ", addr.Size, len(bytes), tag.Raw)
+			return fmt.Errorf("addr.Size(%v) != len(bytes)(%v), tag: %+v, ", addr.Size, len(bytes), tag.Raw)
 		}
 
-		return nil
+		writeBytes = bytes
 	}
 
-	return fmt.Errorf("tag: %v is not found", id)
+	if s.config.Debug {
+		s.conn.Logger().Sugar().Debugf("write tag: %v %v %v %v -> %v", tag.Raw.GetId(), tag.Raw.GetName(), tag.Raw.GetAddress(), writeBytes, value)
+	}
+
+	if len(writeBytes) > 0 {
+		switch addr.Area {
+		case AreaPE:
+			err = client.AGWriteEB(addr.Address, addr.Size, writeBytes)
+		case AreaPA:
+			err = client.AGWriteAB(addr.Address, addr.Size, writeBytes)
+		case AreaMK:
+			err = client.AGWriteMB(addr.Address, addr.Size, writeBytes)
+		case AreaDB:
+			err = client.AGWriteDB(addr.DB, addr.Address, addr.Size, writeBytes)
+		case AreaCT:
+			err = client.AGWriteCT(addr.Address, addr.Size, writeBytes)
+		case AreaTM:
+			err = client.AGWriteTM(addr.Address, addr.Size, writeBytes)
+		default:
+			err = fmt.Errorf("unsupport area: %v", addr.Area)
+		}
+
+		if err != nil {
+			s.conn.Logger().Sugar().Errorf("write error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
+				tag.Raw.GetId(), addr.Area, addr.DB, addr.Address, addr.Size, err)
+
+			return err
+		}
+	}
+
+	return nil
 }

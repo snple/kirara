@@ -1,4 +1,4 @@
-package gos7
+package source
 
 import "sync"
 

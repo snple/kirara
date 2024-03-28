@@ -3,26 +3,30 @@ package gos7
 import (
 	"errors"
 	"fmt"
-	"time"
+	"sort"
 
 	"github.com/robinson/gos7"
-	"github.com/snple/kirara/pb"
+	"github.com/snple/kirara/plugins/source"
 )
 
-func (c *Conn) readTags(readGroups map[string][]readGroup) (err error) {
+func (s *GoS7) readTags(tags map[string]source.Tag) (err error) {
 	defer func() {
 		if re := recover(); re != nil {
 			err = errors.New(fmt.Sprint(re))
 		}
 	}()
 
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	readGroups := groupTags(tags)
+
 	for _, groups := range readGroups {
 		for _, group := range groups {
 			var buffer = make([]byte, group.end-group.start+1)
 			var err error
 
-			c.lock.Lock()
-			client := gos7.NewClient(c.client)
+			client := gos7.NewClient(s.client)
 			switch group.area {
 			case AreaPE:
 				err = client.AGReadEB(group.start, group.end-group.start+1, buffer)
@@ -39,28 +43,29 @@ func (c *Conn) readTags(readGroups map[string][]readGroup) (err error) {
 			default:
 				err = fmt.Errorf("unsupport area: %v", group.area)
 			}
-			c.lock.Unlock()
 
 			if err != nil {
-				c.gs.logger().Sugar().Errorf("read error: area: %v, db: %v, start: %v, size: %v, err: %v",
+				s.conn.Logger().Sugar().Errorf("read error: area: %v, db: %v, start: %v, size: %v, err: %v",
 					group.area, group.db, group.start, len(buffer), err)
 
 				return err
 			}
 
 			for _, tag := range group.tagList {
-				bytes := buffer[tag.addr.Address-group.start : (tag.addr.Address-group.start)+tag.addr.Size]
+				addr := GetAddr(tag)
 
-				value, err := convertBytesToValue(&c.config, tag, bytes)
+				bytes := buffer[addr.Address-group.start : (addr.Address-group.start)+addr.Size]
+
+				value, err := convertBytesToValue(&s.config, tag, bytes)
 				if err != nil {
-					c.gs.logger().Sugar().Error(err)
+					s.conn.Logger().Sugar().Error(err)
 					continue
 				}
 
-				c.syncTagValue(tag.raw.GetId(), value)
+				s.conn.SyncTagValue(tag.Raw.GetId(), value)
 
-				if c.config.Debug {
-					c.gs.logger().Sugar().Debugf("read tag: %v %v %v %v -> %v", tag.raw.GetId(), tag.raw.GetName(), tag.raw.GetAddress(), bytes, value)
+				if s.config.Debug {
+					s.conn.Logger().Sugar().Debugf("read tag: %v %v %v %v -> %v", tag.Raw.GetId(), tag.Raw.GetName(), tag.Raw.GetAddress(), bytes, value)
 				}
 			}
 		}
@@ -69,67 +74,130 @@ func (c *Conn) readTags(readGroups map[string][]readGroup) (err error) {
 	return nil
 }
 
-func (c *Conn) syncTagValue(id string, value string) {
-	t := time.Now().UnixMicro()
-
-	if c.valueCache.setTagValue(id, value, t) {
-		_, err := c.gs.es.GetTag().SyncValue(c.ctx, &pb.TagValue{Id: id, Value: value, Updated: t})
-		if err != nil {
-			c.gs.logger().Sugar().Errorf("GoS7 SyncValue: %v", err)
-		}
-	}
-}
-
-func (c *Conn) readTag(id string) (value string, err error) {
+func (s *GoS7) readTag(tag source.Tag) (value string, err error) {
 	defer func() {
 		if re := recover(); re != nil {
 			err = errors.New(fmt.Sprint(re))
 		}
 	}()
 
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-	if tag, ok := c.tags[id]; ok {
-		var buffer = make([]byte, tag.addr.Size)
+	addr := GetAddr(&tag)
 
-		client := gos7.NewClient(c.client)
+	var buffer = make([]byte, addr.Size)
 
-		switch tag.addr.Area {
-		case AreaPE:
-			err = client.AGReadEB(tag.addr.Address, tag.addr.Size, buffer)
-		case AreaPA:
-			err = client.AGReadAB(tag.addr.Address, tag.addr.Size, buffer)
-		case AreaMK:
-			err = client.AGReadMB(tag.addr.Address, tag.addr.Size, buffer)
-		case AreaDB:
-			err = client.AGReadDB(tag.addr.DB, tag.addr.Address, tag.addr.Size, buffer)
-		case AreaCT:
-			err = client.AGReadCT(tag.addr.Address, tag.addr.Size, buffer)
-		case AreaTM:
-			err = client.AGReadTM(tag.addr.Address, tag.addr.Size, buffer)
-		default:
-			err = fmt.Errorf("unsupport area: %v", tag.addr.Area)
-		}
+	client := gos7.NewClient(s.client)
 
-		if err != nil {
-			c.gs.logger().Sugar().Errorf("read error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
-				id, tag.addr.Area, tag.addr.DB, tag.addr.Address, tag.addr.Size, err)
-			return "", err
-		}
-
-		value, err := convertBytesToValue(&c.config, tag, buffer)
-		if err != nil {
-			c.gs.logger().Sugar().Error(err)
-			return "", err
-		}
-
-		if c.config.Debug {
-			c.gs.logger().Sugar().Debugf("read tag: %v %v %v %v -> %v", tag.raw.GetId(), tag.raw.GetName(), tag.raw.GetAddress(), buffer, value)
-		}
-
-		return value, nil
+	switch addr.Area {
+	case AreaPE:
+		err = client.AGReadEB(addr.Address, addr.Size, buffer)
+	case AreaPA:
+		err = client.AGReadAB(addr.Address, addr.Size, buffer)
+	case AreaMK:
+		err = client.AGReadMB(addr.Address, addr.Size, buffer)
+	case AreaDB:
+		err = client.AGReadDB(addr.DB, addr.Address, addr.Size, buffer)
+	case AreaCT:
+		err = client.AGReadCT(addr.Address, addr.Size, buffer)
+	case AreaTM:
+		err = client.AGReadTM(addr.Address, addr.Size, buffer)
+	default:
+		err = fmt.Errorf("unsupport area: %v", addr.Area)
 	}
 
-	return "", fmt.Errorf("tag: %v is not found", id)
+	if err != nil {
+		s.conn.Logger().Sugar().Errorf("read error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
+			tag.Raw.GetId(), addr.Area, addr.DB, addr.Address, addr.Size, err)
+		return "", err
+	}
+
+	value, err = convertBytesToValue(&s.config, &tag, buffer)
+	if err != nil {
+		s.conn.Logger().Sugar().Error(err)
+		return "", err
+	}
+
+	if s.config.Debug {
+		s.conn.Logger().Sugar().Debugf("read tag: %v %v %v %v -> %v", tag.Raw.GetId(), tag.Raw.GetName(), tag.Raw.GetAddress(), buffer, value)
+	}
+
+	return value, nil
+}
+
+func groupTags(tags map[string]source.Tag) map[string][]readGroup {
+	tags2 := make([]*source.Tag, 0, len(tags))
+
+	for _, tag := range tags {
+		tags2 = append(tags2, &tag)
+	}
+
+	sort.Sort(tagsSort(tags2))
+
+	return group(tags2)
+}
+
+// sort
+type tagsSort []*source.Tag
+
+func (s tagsSort) Len() int {
+	return len(s)
+}
+
+func (s tagsSort) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s tagsSort) Less(i, j int) bool {
+	return GetAddr(s[i]).Address < GetAddr(s[j]).Address
+}
+
+type readGroup struct {
+	area    int
+	db      int
+	start   int
+	end     int
+	tagList []*source.Tag
+}
+
+func newReadGroup(tag *source.Tag, addr *Addr) readGroup {
+	group := readGroup{
+		area:    addr.Area,
+		db:      addr.DB,
+		start:   addr.Address,
+		end:     addr.Address + addr.Size - 1,
+		tagList: []*source.Tag{tag},
+	}
+
+	return group
+}
+
+const block = 256
+
+func group(tags []*source.Tag) map[string][]readGroup {
+	groupMap := make(map[string][]readGroup)
+
+	for _, tag := range tags {
+		addr := GetAddr(tag)
+
+		key := fmt.Sprintf("%v:%v", addr.Area, addr.DB)
+
+		if groups, ok := groupMap[key]; ok {
+			if (addr.Address + addr.Size - groups[len(groups)-1].start) < block {
+				groups[len(groups)-1].end = addr.Address + addr.Size - 1
+				groups[len(groups)-1].tagList = append(groups[len(groups)-1].tagList, tag)
+			} else {
+				group := newReadGroup(tag, addr)
+
+				groupMap[key] = append(groupMap[key], group)
+			}
+		} else {
+			group := newReadGroup(tag, addr)
+
+			groupMap[key] = []readGroup{group}
+		}
+	}
+
+	return groupMap
 }

@@ -1,0 +1,197 @@
+package modbus
+
+import (
+	"fmt"
+	"sort"
+	"testing"
+
+	"github.com/snple/kirara/pb"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestParseAddr(t *testing.T) {
+	addr := "40033.4"
+
+	mbaddr := ParseTagAddress(addr, "BOOL")
+
+	fmt.Printf("%+v\n", mbaddr)
+	assert.Exactly(t, "4", mbaddr.Area)
+	assert.Exactly(t, uint8(4), mbaddr.Bit)
+	assert.Exactly(t, uint16(33), mbaddr.Address)
+	assert.Exactly(t, uint16(2), mbaddr.Size)
+}
+
+func TestColisGroup(t *testing.T) {
+	tags := make(map[string]*Tag, 0)
+
+	{
+		tag := &Tag{
+			raw: &pb.Tag{Name: "tag1", DataType: "BOOL", Address: "10001"},
+		}
+
+		tag.parse()
+
+		tags["1"] = tag
+	}
+
+	{
+		tag := &Tag{
+			raw: &pb.Tag{Name: "tag2", DataType: "BOOL", Address: "10002"},
+		}
+
+		err := tag.parse()
+		fmt.Println(err)
+
+		tags["2"] = tag
+	}
+
+	{
+		tag := &Tag{
+			raw: &pb.Tag{Name: "tag3", DataType: "BOOL", Address: "11003"},
+		}
+
+		tag.parse()
+
+		tags["3"] = tag
+	}
+
+	tags2 := make([]*Tag, 0, len(tags))
+	for _, tag := range tags {
+		tags2 = append(tags2, tag)
+	}
+
+	sort.Sort(tagsSort(tags2))
+
+	readGroup := group(tags2)
+
+	fmt.Printf("%+v\n", readGroup)
+
+	for _, groups := range readGroup {
+		for _, group := range groups {
+			fmt.Printf("%+v\n", group)
+
+			for _, tag := range group.tagList {
+				fmt.Printf("%+v\n", tag)
+			}
+		}
+	}
+}
+
+// func TestReadCoil(t *testing.T) {
+// 	tcpClientHandler := MODBUS.NewTCPClientHandler("127.0.0.1:5020")
+// 	tcpClientHandler.SlaveId = byte(0)
+// 	tcpClientHandler.Logger = log.New(os.Stdout, "", log.LstdFlags)
+
+// 	err := tcpClientHandler.Connect()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	client := MODBUS.NewClient(tcpClientHandler)
+
+// 	fmt.Println(client)
+
+// 	bytes, err := client.ReadCoils(0, 1)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// 	fmt.Println(bytes)
+// }
+
+func TestTagParse(t *testing.T) {
+	tag1 := Tag{
+		raw: &pb.Tag{
+			Address:  "40213",
+			DataType: "U16",
+		},
+	}
+
+	tag1.parse()
+
+	fmt.Printf("%+v\n", tag1)
+
+	tag2 := Tag{
+		raw: &pb.Tag{
+			Address:  "40213",
+			DataType: "F32",
+			Config:   `{"convert":{"type": "U16","get": "val / 100"}}`,
+		},
+	}
+
+	tag2.parse()
+
+	fmt.Printf("%+v\n", tag2)
+	fmt.Printf("%+v\n", tag2.config.Convert)
+}
+
+func TestTagGroup(t *testing.T) {
+	tags := make(map[string]*Tag, 0)
+
+	{
+		tag := &Tag{
+			raw: &pb.Tag{
+				Id:       "1",
+				Address:  "40213",
+				DataType: "F32",
+				Config:   `{"convert":{"type": "U16","get": "val / 100"}}`,
+			},
+		}
+
+		tag.parse()
+
+		tags["1"] = tag
+	}
+
+	{
+		tag := &Tag{
+			raw: &pb.Tag{
+				Id:       "2",
+				Address:  "40214",
+				DataType: "F32",
+				Config:   `{"convert":{"type": "U16","get": "val / 100"}}`,
+			},
+		}
+
+		tag.parse()
+
+		tags["2"] = tag
+	}
+
+	{
+		tag := &Tag{
+			raw: &pb.Tag{
+				Id:       "3",
+				Address:  "40215",
+				DataType: "F32",
+				Config:   `{"convert":{"type": "U16","get": "val / 100"}}`,
+			},
+		}
+
+		tag.parse()
+
+		tags["3"] = tag
+	}
+
+	tags2 := make([]*Tag, 0, len(tags))
+	for _, tag := range tags {
+		tags2 = append(tags2, tag)
+	}
+
+	sort.Sort(tagsSort(tags2))
+
+	readGroup := group(tags2)
+
+	fmt.Printf("%+v\n", readGroup)
+
+	for _, groups := range readGroup {
+		for _, group := range groups {
+			fmt.Printf("%+v\n", group)
+
+			for _, tag := range group.tagList {
+				fmt.Printf("%+v\n", tag)
+			}
+		}
+	}
+
+}

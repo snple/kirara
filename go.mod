@@ -4,6 +4,7 @@ go 1.22.1
 
 require (
 	github.com/BurntSushi/toml v1.3.2
+	github.com/PaesslerAG/gval v1.2.2
 	github.com/danclive/nson-go v0.6.1
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/gin-contrib/cors v1.7.0
@@ -13,6 +14,7 @@ require (
 	github.com/klauspost/compress v1.16.7
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/robinson/gos7 v0.0.0-20240315073918-1f14519e4846
+	github.com/simonvetter/modbus v1.6.1
 	github.com/snple/rgrpc v0.2.0
 	github.com/snple/slim v0.4.0
 	github.com/snple/types v0.2.1
@@ -20,7 +22,6 @@ require (
 	github.com/uptrace/bun v1.1.17
 	github.com/uptrace/bun/dialect/sqlitedialect v1.1.17
 	github.com/uptrace/bun/extra/bundebug v1.1.17
-	github.com/yuin/gopher-lua v1.1.1
 	go.etcd.io/bbolt v1.3.9
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.21.0
@@ -44,6 +45,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.19.0 // indirect
+	github.com/goburrow/serial v0.1.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.2.0 // indirect
@@ -68,6 +70,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect

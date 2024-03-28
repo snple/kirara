@@ -1,11 +1,11 @@
-package gos7
+package source
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
-	"github.com/robinson/gos7"
 	"github.com/snple/kirara/consts"
 	"github.com/snple/kirara/edge"
 	"github.com/snple/kirara/pb"
@@ -14,16 +14,12 @@ import (
 )
 
 type Conn struct {
-	gs     *GoS7Slot
+	s      *TagIOSlot
 	source *pb.Source
-	config Config
 
-	client     *gos7.TCPClientHandler
-	updated    int64
-	tags       map[string]*Tag
-	grouped    bool
-	readGroups map[string][]readGroup
-	lock       sync.RWMutex
+	updated int64
+	tags    map[string]Tag
+	lock    sync.RWMutex
 
 	valueCache *valueCache
 
@@ -32,64 +28,75 @@ type Conn struct {
 	closeWG sync.WaitGroup
 
 	slots.UnimplementedControlServiceServer
+
+	adapter Adapter
 }
 
-func newConn(gs *GoS7Slot, source *pb.Source) (*Conn, error) {
-	config, err := ParseConfig(source.Params)
-	if err != nil {
-		return nil, err
+func newConn(s *TagIOSlot, source *pb.Source) (*Conn, error) {
+	connect, has := GetAdapter(source.GetSource())
+	if !has {
+		return nil, fmt.Errorf("adapter %v not found", source.GetSource())
 	}
 
-	client := gos7.NewTCPClientHandler(config.Addr, config.Rank, config.Slot)
-	err = client.Connect()
-	if err != nil {
-		gs.logger().Sugar().Errorf("GoS7 source link: %v, source: %v", err, source)
-		return nil, err
-	}
-
-	reply, err := gs.es.GetSync().GetTagValueUpdated(gs.ctx, &pb.MyEmpty{})
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithCancel(gs.ctx)
+	ctx, cancel := context.WithCancel(s.ctx)
 
 	conn := &Conn{
-		gs:         gs,
-		source:     source,
-		config:     config,
-		client:     client,
-		tags:       make(map[string]*Tag),
-		valueCache: newValueCache(reply.GetUpdated()),
-		ctx:        ctx,
-		cancel:     cancel,
+		s:      s,
+		source: source,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
-	if err = conn.fetchTags(); err != nil {
-		gs.logger().Sugar().Errorf("GoS7 fetchTags: %v", err)
+	adapter, err := connect(conn)
+	if err != nil {
+		s.logger().Sugar().Errorf("adapter %v connect error %v, source: %v", source.GetSource(), err, source)
 		return nil, err
 	}
+	conn.adapter = adapter
 
-	go conn.waitTagValueUpdated()
-	go conn.syncLinkStatus()
+	err = conn.init()
+	if err != nil {
+		conn.adapter.Close()
+		return nil, err
+	}
 
 	return conn, nil
 }
 
-func (c *Conn) start() {
-	c.closeWG.Add(1)
-	defer c.closeWG.Done()
+func (c *Conn) init() error {
+	reply, err := c.s.es.GetSync().GetTagValueUpdated(c.ctx, &pb.MyEmpty{})
+	if err != nil {
+		return err
+	}
+	c.valueCache = newValueCache(reply.GetUpdated())
+	c.tags = make(map[string]Tag)
 
-	c.gs.es.GetControl().AddSourceServer(c.source.GetId(), c)
-	defer c.gs.es.GetControl().RemoveSourceServer(c.source.GetId(), c)
+	if err = c.fetchTags(); err != nil {
+		c.s.logger().Sugar().Errorf("TagIO fetchTags: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (c *Conn) run() {
+	defer c.closeWG.Wait()
+
+	c.s.es.GetControl().AddSourceServer(c.source.GetId(), c)
+	defer c.s.es.GetControl().RemoveSourceServer(c.source.GetId(), c)
 
 	c.linkSource(consts.ON)
 	defer c.linkSource(consts.OFF)
 
-	readTicker := time.NewTicker(c.gs.dopts.readDataInterval)
+	readTicker := time.NewTicker(c.s.dopts.readDataInterval)
 	defer readTicker.Stop()
 
 	defer c.cancel()
+
+	defer c.adapter.Close()
+
+	go c.waitTagValueUpdated()
+	go c.syncLinkStatus()
 
 	for {
 		select {
@@ -97,18 +104,11 @@ func (c *Conn) start() {
 			return
 		case <-readTicker.C:
 			c.lock.Lock()
-			grouped := c.grouped
-
-			if !grouped {
-				c.readGroups = groupTags(c.tags)
-				c.grouped = true
-			}
-
-			readGroup := c.readGroups
+			err := c.adapter.ReadTags(c.tags)
 			c.lock.Unlock()
 
-			if err := c.readTags(readGroup); err != nil {
-				c.gs.logger().Sugar().Errorf("GoS7 readTags: %v", err)
+			if err != nil {
+				c.s.logger().Sugar().Errorf("%v readTags: %v", c.adapter.Name(), err)
 				return
 			}
 		}
@@ -131,27 +131,30 @@ func (c *Conn) fetchTags() error {
 		SourceId: c.source.Id,
 	}
 
-	reply, err := c.gs.es.GetTag().List(c.ctx, &request)
+	reply, err := c.s.es.GetTag().List(c.ctx, &request)
 	if err != nil {
 		return err
 	}
 
 	for _, tag := range reply.GetTag() {
 		if tag.GetAddress() != "" && tag.GetDataType() != "" && tag.GetStatus() == consts.ON {
-			tag2 := newTag(tag)
-			tag2.parse()
+			tag2 := Tag{Raw: tag}
+
+			err = c.adapter.ParseTag(&tag2)
+			if err != nil {
+				c.s.logger().Sugar().Errorf("%v ParseTag: %v, err: %v", c.adapter.Name(), tag, err)
+				continue
+			}
 
 			c.tags[tag.GetId()] = tag2
 		}
 	}
 
-	c.grouped = false
-
 	return nil
 }
 
 func (c *Conn) checkTagUpdated() error {
-	tagUpdated, err := c.gs.es.GetSync().GetTagUpdated(c.ctx, &pb.MyEmpty{})
+	tagUpdated, err := c.s.es.GetSync().GetTagUpdated(c.ctx, &pb.MyEmpty{})
 	if err != nil {
 		return err
 	}
@@ -167,7 +170,7 @@ func (c *Conn) checkTagUpdated() error {
 		limit := uint32(10)
 
 		for {
-			remotes, err := c.gs.es.GetTag().Pull(c.ctx,
+			remotes, err := c.s.es.GetTag().Pull(c.ctx,
 				&edges.TagPullRequest{After: after, Limit: limit, SourceId: c.source.GetId()})
 			if err != nil {
 				return err
@@ -181,13 +184,16 @@ func (c *Conn) checkTagUpdated() error {
 
 				if remote.GetDeleted() <= 0 && remote.GetAddress() != "" &&
 					remote.GetDataType() != "" && remote.GetStatus() == consts.ON {
+					tag2 := Tag{Raw: remote}
 
-					tag2 := newTag(remote)
-					tag2.parse()
+					err = c.adapter.ParseTag(&tag2)
+					if err != nil {
+						c.s.logger().Sugar().Errorf("%v ParseTag: %v, err: %v", c.adapter.Name(), remote, err)
+						continue
+					}
+
 					c.tags[remote.GetId()] = tag2
 				}
-
-				c.grouped = false
 				c.lock.Unlock()
 			}
 
@@ -206,7 +212,7 @@ func (c *Conn) waitTagValueUpdated() {
 	c.closeWG.Add(1)
 	defer c.closeWG.Done()
 
-	notify := c.gs.es.GetSync().Notify(edge.NOTIFY_TVAL)
+	notify := c.s.es.GetSync().Notify(edge.NOTIFY_TVAL)
 	defer notify.Close()
 
 	for {
@@ -218,14 +224,14 @@ func (c *Conn) waitTagValueUpdated() {
 
 			err := c.checkTagValueUpdated()
 			if err != nil {
-				c.gs.logger().Sugar().Errorf("checkTagValueUpdated: %v", err)
+				c.s.logger().Sugar().Errorf("checkTagValueUpdated: %v", err)
 			}
 		}
 	}
 }
 
 func (c *Conn) checkTagValueUpdated() error {
-	reply, err := c.gs.es.GetSync().GetTagValueUpdated(c.ctx, &pb.MyEmpty{})
+	reply, err := c.s.es.GetSync().GetTagValueUpdated(c.ctx, &pb.MyEmpty{})
 	if err != nil {
 		return err
 	}
@@ -242,7 +248,7 @@ func (c *Conn) checkTagValueUpdated() error {
 		limit := uint32(10)
 
 		for {
-			remotes, err := c.gs.es.GetTag().PullValue(c.ctx,
+			remotes, err := c.s.es.GetTag().PullValue(c.ctx,
 				&edges.TagPullValueRequest{After: after, Limit: limit, SourceId: c.source.GetId()})
 			if err != nil {
 				return err
@@ -252,7 +258,7 @@ func (c *Conn) checkTagValueUpdated() error {
 				after = remote.GetUpdated()
 
 				if tag, ok := c.getTag(remote.GetId()); ok {
-					if tag.raw.GetAccess() != consts.ON {
+					if tag.Raw.GetAccess() != consts.ON {
 						continue
 					}
 
@@ -266,9 +272,9 @@ func (c *Conn) checkTagValueUpdated() error {
 						}
 					}
 
-					err := c.writeTag(remote.GetId(), remote.GetValue())
+					err := c.adapter.WriteTag(tag, remote.GetValue())
 					if err != nil {
-						c.gs.logger().Sugar().Errorf("GoS7 writeTag: %v", err)
+						c.s.logger().Sugar().Errorf("%v writeTag: %v", c.adapter.Name(), err)
 					}
 				}
 			}
@@ -284,7 +290,7 @@ func (c *Conn) checkTagValueUpdated() error {
 	return nil
 }
 
-func (c *Conn) getTag(id string) (*Tag, bool) {
+func (c *Conn) getTag(id string) (Tag, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
@@ -320,7 +326,7 @@ func (c *Conn) syncLinkStatus() {
 		case <-ticker.C:
 			err := c.linkSource(consts.ON)
 			if err != nil {
-				c.gs.logger().Sugar().Errorf("source link error: %v", err)
+				c.s.logger().Sugar().Errorf("source link error: %v", err)
 			}
 		}
 	}
@@ -328,6 +334,6 @@ func (c *Conn) syncLinkStatus() {
 
 func (c *Conn) linkSource(status int32) error {
 	request := edges.SourceLinkRequest{Id: c.source.GetId(), Status: status}
-	_, err := c.gs.es.GetSource().Link(c.ctx, &request)
+	_, err := c.s.es.GetSource().Link(c.ctx, &request)
 	return err
 }

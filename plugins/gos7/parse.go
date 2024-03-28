@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-type S7Addr struct {
+type Addr struct {
 	Addr    string
 	Format  string
 	Area    int
@@ -43,8 +43,8 @@ const (
 	AreaTM = 0x1D
 )
 
-func ParseTagAddress(addr string) S7Addr {
-	var rs S7Addr
+func ParseTagAddr(addr string) (*Addr, error) {
+	var rs Addr
 	rs.Addr = addr
 
 	var subaddress string
@@ -91,13 +91,13 @@ func ParseTagAddress(addr string) S7Addr {
 		subaddress = addr[1:]
 	}
 
-	rs.Format, rs.Address, rs.Bit = ParseTagSubAddress(subaddress)
+	rs.Format, rs.Address, rs.Bit = ParseTagSubAddr(subaddress)
 	rs.Size = typeSize[rs.Format]
 	//rs.Cmd = [4]int{S7Area[rs.Area], DB_No, rs.Address, rs.Size}
-	return rs
+	return &rs, nil
 }
 
-func ParseTagSubAddress(subaddr string) (string, int, int) {
+func ParseTagSubAddr(subaddr string) (string, int, int) {
 	format := ""
 
 	digitStart := -1

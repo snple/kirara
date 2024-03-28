@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/snple/kirara/plugins/source"
 	"github.com/snple/kirara/util"
 	utilbytes "github.com/snple/kirara/util/bytes"
 	"github.com/snple/kirara/util/datatype"
 )
 
-func convertBytesToValue(config *Config, tag *Tag, bytes []byte) (string, error) {
-	switch datatype.DataType(tag.raw.DataType) {
+func convertBytesToValue(config *Config, tag *source.Tag, bytes []byte) (string, error) {
+	switch datatype.DataType(tag.Raw.GetDataType()) {
 	case datatype.DataTypeI8:
 		if len(bytes) == 1 {
 			v := int8(bytes[0])
@@ -64,16 +65,18 @@ func convertBytesToValue(config *Config, tag *Tag, bytes []byte) (string, error)
 			return fmt.Sprintf("%v", v), nil
 		}
 	case datatype.DataTypeBool:
-		switch tag.addr.Format {
+		addr := GetAddr(tag)
+
+		switch addr.Format {
 		case "B", "C", "X", "I", "DBB", "DBC", "DBX":
 			if len(bytes) == 1 {
-				b := utilbytes.GetBitFromBites(bytes[0], tag.addr.Bit)
+				b := utilbytes.GetBitFromBites(bytes[0], addr.Bit)
 				return fmt.Sprintf("%v", b), nil
 			}
 		case "W", "DBW":
 			if len(bytes) == 2 {
-				i := tag.addr.Bit / 8
-				bit := tag.addr.Bit % 8
+				i := addr.Bit / 8
+				bit := addr.Bit % 8
 
 				if i <= 1 {
 					b := utilbytes.GetBitFromBites(bytes[i], bit)
@@ -82,8 +85,8 @@ func convertBytesToValue(config *Config, tag *Tag, bytes []byte) (string, error)
 			}
 		case "D", "DBD", "DI", "DBDI", "REAL", "DBREAL":
 			if len(bytes) == 4 {
-				i := tag.addr.Bit / 8
-				bit := tag.addr.Bit % 8
+				i := addr.Bit / 8
+				bit := addr.Bit % 8
 
 				if i <= 3 {
 					b := utilbytes.GetBitFromBites(bytes[i], bit)
@@ -93,11 +96,11 @@ func convertBytesToValue(config *Config, tag *Tag, bytes []byte) (string, error)
 		}
 	}
 
-	return "", fmt.Errorf("convertBytesToNson, tag: %+v, bytes: %v", tag.raw, bytes)
+	return "", fmt.Errorf("convertBytesToValue, tag: %+v, bytes: %v", tag.Raw, bytes)
 }
 
-func convertValueToBytes(config *Config, tag *Tag, value string) ([]byte, error) {
-	switch datatype.DataType(tag.raw.DataType) {
+func convertValueToBytes(config *Config, tag *source.Tag, value string) ([]byte, error) {
+	switch datatype.DataType(tag.Raw.GetDataType()) {
 	case datatype.DataTypeI8:
 		value2, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
@@ -170,5 +173,5 @@ func convertValueToBytes(config *Config, tag *Tag, value string) ([]byte, error)
 		return utilbytes.Float64ToBytes(float64(value2), config.IsBIGEndian), nil
 	}
 
-	return nil, fmt.Errorf("convertValueToBytes, tag: %+v, value: %v", tag.raw, value)
+	return nil, fmt.Errorf("convertValueToBytes, tag: %+v, value: %v", tag.Raw, value)
 }
