@@ -8,7 +8,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/snple/kirara/db"
-	"github.com/snple/kirara/model"
+	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/pb/edges"
 	"github.com/snple/types"
 	"github.com/uptrace/bun"
@@ -31,8 +31,10 @@ type EdgeService struct {
 	logic    *LogicService
 	fn       *FnService
 	data     *DataService
-	control  *ControlService
 	save     types.Option[*SaveService]
+	control  *ControlService
+
+	node types.Option[*NodeService]
 
 	clone *cloneService
 
@@ -102,6 +104,14 @@ func EdgeContext(ctx context.Context, db *bun.DB, opts ...EdgeOption) (*EdgeServ
 
 	es.control = newControlService(es)
 
+	if es.dopts.NodeOptions.Enable {
+		node, err := newNodeService(es)
+		if err != nil {
+			return nil, err
+		}
+		es.node = types.Some(node)
+	}
+
 	es.clone = newCloneService(es)
 
 	es.auth = newAuthService(es)
@@ -117,6 +127,15 @@ func (es *EdgeService) Start() {
 
 		es.badger.start()
 	}()
+
+	if es.node.IsSome() {
+		go func() {
+			es.closeWG.Add(1)
+			defer es.closeWG.Done()
+
+			es.node.Unwrap().start()
+		}()
+	}
 
 	if es.save.IsSome() {
 		go func() {
@@ -140,6 +159,10 @@ func (es *EdgeService) Start() {
 func (es *EdgeService) Stop() {
 	if es.save.IsSome() {
 		es.save.Unwrap().stop()
+	}
+
+	if es.node.IsSome() {
+		es.node.Unwrap().stop()
 	}
 
 	es.badger.stop()
@@ -219,6 +242,10 @@ func (es *EdgeService) GetSave() types.Option[*SaveService] {
 
 func (es *EdgeService) GetControl() *ControlService {
 	return es.control
+}
+
+func (es *EdgeService) GetNode() types.Option[*NodeService] {
+	return es.node
 }
 
 func (es *EdgeService) getClone() *cloneService {
@@ -307,6 +334,8 @@ type edgeOptions struct {
 	deviceID string
 	secret   string
 
+	NodeOptions     NodeOptions
+	SyncOptions     SyncOptions
 	BadgerOptions   badger.Options
 	BadgerGCOptions BadgerGCOptions
 
@@ -317,6 +346,19 @@ type edgeOptions struct {
 	influxdb     *db.InfluxDB
 	save         bool
 	saveInterval time.Duration
+}
+
+type NodeOptions struct {
+	Enable      bool
+	Addr        string
+	GRPCOptions []grpc.DialOption
+}
+
+type SyncOptions struct {
+	TokenRefresh time.Duration
+	Link         time.Duration
+	Interval     time.Duration
+	Realtime     bool
 }
 
 type BadgerGCOptions struct {
@@ -331,7 +373,14 @@ func defaultEdgeOptions() edgeOptions {
 	}
 
 	return edgeOptions{
-		logger:        logger,
+		logger:      logger,
+		NodeOptions: NodeOptions{},
+		SyncOptions: SyncOptions{
+			TokenRefresh: 3 * time.Minute,
+			Link:         time.Minute,
+			Interval:     time.Minute,
+			Realtime:     false,
+		},
 		BadgerOptions: badger.DefaultOptions("").WithInMemory(true),
 		BadgerGCOptions: BadgerGCOptions{
 			GC:             time.Hour,
@@ -380,6 +429,30 @@ func WithDeviceID(id, secret string) EdgeOption {
 	return newFuncEdgeOption(func(o *edgeOptions) {
 		o.deviceID = id
 		o.secret = secret
+	})
+}
+
+func WithNode(options NodeOptions) EdgeOption {
+	return newFuncEdgeOption(func(o *edgeOptions) {
+		o.NodeOptions = options
+	})
+}
+
+func WithSync(options SyncOptions) EdgeOption {
+	return newFuncEdgeOption(func(o *edgeOptions) {
+		if options.TokenRefresh > 0 {
+			o.SyncOptions.TokenRefresh = options.TokenRefresh
+		}
+
+		if options.Link > 0 {
+			o.SyncOptions.Link = options.Link
+		}
+
+		if options.Interval > 0 {
+			o.SyncOptions.Interval = options.Interval
+		}
+
+		o.SyncOptions.Realtime = options.Realtime
 	})
 }
 

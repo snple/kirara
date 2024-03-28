@@ -12,7 +12,7 @@ import (
 	"github.com/danclive/nson-go"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/snple/kirara/consts"
-	"github.com/snple/kirara/model"
+	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/pb"
 	"github.com/snple/kirara/pb/edges"
 	"github.com/snple/kirara/util"

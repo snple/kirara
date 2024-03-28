@@ -1,0 +1,104 @@
+syntax = "proto3";
+package nodes;
+
+option go_package = "github.com/snple/kirara/pb/nodes;nodes";
+
+import "class_message.proto";
+import "generic_message.proto";
+
+// class
+message ClassListRequest {
+    pb.Page page = 1;
+    // string device_id = 2;
+    string tags = 3;
+    string type = 4;
+}
+
+message ClassListResponse {
+    pb.Page page = 1;
+    uint32 count = 2;
+    repeated pb.Class class = 3;
+}
+
+message ClassPullRequest {
+    int64 after = 1;
+    uint32 limit = 2;
+    // string device_id = 3;
+    string type = 4;
+}
+
+message ClassPullResponse {
+    int64 after = 1;
+    uint32 limit = 2;
+    repeated pb.Class class = 3;
+}
+
+service ClassService {
+    rpc Create(pb.Class) returns (pb.Class) {}
+    rpc Update(pb.Class) returns (pb.Class) {}
+    rpc View(pb.Id) returns (pb.Class) {}
+    rpc Name(pb.Name) returns (pb.Class) {}
+    rpc Delete(pb.Id) returns (pb.MyBool) {}
+    rpc List(ClassListRequest) returns (ClassListResponse) {}
+    rpc ViewWithDeleted(pb.Id) returns (pb.Class) {}
+    rpc Pull(ClassPullRequest) returns (ClassPullResponse) {}
+    rpc Sync(pb.Class) returns (pb.MyBool) {}
+}
+
+// attr
+message AttrListRequest {
+    pb.Page page = 1;
+    // string device_id = 2;
+    string class_id = 3;
+    string tags = 4;
+    string type = 5;
+}
+
+message AttrListResponse {
+    pb.Page page = 1;
+    uint32 count = 2;
+    repeated pb.Attr attr = 3;
+}
+
+message AttrPullRequest {
+    int64 after = 1;
+    uint32 limit = 2;
+    // string device_id = 3;
+    string class_id = 4;
+    string type = 5;
+}
+
+message AttrPullResponse {
+    int64 after = 1;
+    uint32 limit = 2;
+    repeated pb.Attr attr = 3;
+}
+
+message AttrValueUploadRequest {
+    string id = 1;
+    bytes content = 2;
+}
+
+message AttrValueUploadResponse {
+    string id = 1;
+    string message = 2;
+}
+
+service AttrService {
+    rpc Create(pb.Attr) returns (pb.Attr) {}
+    rpc Update(pb.Attr) returns (pb.Attr) {}
+    rpc View(pb.Id) returns (pb.Attr) {}
+    rpc Name(pb.Name) returns (pb.Attr) {}
+    rpc Delete(pb.Id) returns (pb.MyBool) {}
+    rpc List(AttrListRequest) returns (AttrListResponse) {}
+    rpc ViewWithDeleted(pb.Id) returns (pb.Attr) {}
+    rpc Pull(AttrPullRequest) returns (AttrPullResponse) {}
+    rpc Sync(pb.Attr) returns (pb.MyBool) {}
+    rpc GetValue(pb.Id) returns (pb.AttrValue) {}
+    rpc SetValue(pb.AttrValue) returns (pb.MyBool) {}
+    rpc SetValueForce(pb.AttrValue) returns (pb.MyBool) {}
+    rpc GetValueByName(pb.Name) returns (pb.AttrNameValue) {}
+    rpc SetValueByName(pb.AttrNameValue) returns (pb.MyBool) {}
+    rpc SetValueByNameForce(pb.AttrNameValue) returns (pb.MyBool) {}
+    rpc Upload(AttrValueUploadRequest) returns (AttrValueUploadResponse) {}
+}

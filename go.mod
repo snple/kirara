@@ -4,6 +4,7 @@ go 1.22.1
 
 require (
 	github.com/BurntSushi/toml v1.3.2
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/danclive/nson-go v0.6.1
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/gin-contrib/cors v1.7.0

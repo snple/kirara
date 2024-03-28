@@ -10,7 +10,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/snple/kirara/model"
+	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/util"
 	"github.com/uptrace/bun"
 	"google.golang.org/grpc/codes"

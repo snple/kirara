@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/snple/kirara/consts"
 	"github.com/snple/kirara/db"
-	"github.com/snple/kirara/model"
+	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/pb"
 	"github.com/snple/kirara/pb/edges"
 	"github.com/snple/kirara/util"

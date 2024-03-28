@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/snple/kirara/model"
+	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/pb"
 	"github.com/snple/kirara/pb/edges"
 	"google.golang.org/grpc"
@@ -650,6 +650,38 @@ func (s *SyncService) setTagValueUpdated(ctx context.Context, updated time.Time)
 	s.notifyUpdated(NOTIFY_TVAL)
 
 	return nil
+}
+
+func (s *SyncService) getDeviceUpdatedRemoteToLocal(ctx context.Context) (time.Time, error) {
+	return s.getUpdated(ctx, model.SYNC_DEVICE_REMOTE_TO_LOCAL)
+}
+
+func (s *SyncService) setDeviceUpdatedRemoteToLocal(ctx context.Context, updated time.Time) error {
+	return s.setUpdated(ctx, model.SYNC_DEVICE_REMOTE_TO_LOCAL, updated)
+}
+
+func (s *SyncService) getDeviceUpdatedLocalToRemote(ctx context.Context) (time.Time, error) {
+	return s.getUpdated(ctx, model.SYNC_DEVICE_LOCAL_TO_REMOTE)
+}
+
+func (s *SyncService) setDeviceUpdatedLocalToRemote(ctx context.Context, updated time.Time) error {
+	return s.setUpdated(ctx, model.SYNC_DEVICE_LOCAL_TO_REMOTE, updated)
+}
+
+func (s *SyncService) getTagValueUpdatedRemoteToLocal(ctx context.Context) (time.Time, error) {
+	return s.getUpdated(ctx, model.SYNC_TAG_VALUE_REMOTE_TO_LOCAL)
+}
+
+func (s *SyncService) setTagValueUpdatedRemoteToLocal(ctx context.Context, updated time.Time) error {
+	return s.setUpdated(ctx, model.SYNC_TAG_VALUE_REMOTE_TO_LOCAL, updated)
+}
+
+func (s *SyncService) getTagValueUpdatedLocalToRemote(ctx context.Context) (time.Time, error) {
+	return s.getUpdated(ctx, model.SYNC_TAG_VALUE_LOCAL_TO_REMOTE)
+}
+
+func (s *SyncService) setTagValueUpdatedLocalToRemote(ctx context.Context, updated time.Time) error {
+	return s.setUpdated(ctx, model.SYNC_TAG_VALUE_LOCAL_TO_REMOTE, updated)
 }
 
 func (s *SyncService) getUpdated(_ context.Context, key string) (time.Time, error) {

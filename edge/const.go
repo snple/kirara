@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/snple/kirara/consts"
-	"github.com/snple/kirara/model"
+	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/pb"
 	"github.com/snple/kirara/pb/edges"
 	"github.com/snple/kirara/util"

@@ -20,4 +20,9 @@ const (
 	SYNC_LOGIC     = "sync_logic"
 	SYNC_FN        = "sync_fn"
 	SYNC_TAG_VALUE = "sync_tag_value"
+
+	SYNC_DEVICE_REMOTE_TO_LOCAL    = "sync_device_rtl"
+	SYNC_DEVICE_LOCAL_TO_REMOTE    = "sync_device_ltr"
+	SYNC_TAG_VALUE_REMOTE_TO_LOCAL = "sync_tgv_rtl"
+	SYNC_TAG_VALUE_LOCAL_TO_REMOTE = "sync_tgv_ltr"
 )

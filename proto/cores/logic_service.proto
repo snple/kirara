@@ -1,0 +1,113 @@
+syntax = "proto3";
+package cores;
+
+option go_package = "github.com/snple/kirara/pb/cores;cores";
+
+import "logic_message.proto";
+import "generic_message.proto";
+
+message FnListRequest {
+    pb.Page page = 1;
+    string device_id = 2;
+    string tags = 3;
+    string type = 4;
+    string exec = 5;
+}
+
+message FnListResponse {
+    pb.Page page = 1;
+    uint32 count = 2;
+    repeated pb.Fn fn = 3;
+}
+
+message FnNameRequest {
+    string device_id = 1;
+    string name = 2;
+}
+
+message FnLinkRequest {
+    string id = 1;
+    sint32 status = 2;
+}
+
+message CloneFnRequest {
+    string id = 1;
+    string device_id = 2;
+}
+
+message FnPullRequest {
+    int64 after = 1;
+    uint32 limit = 2;
+    string device_id = 3;
+    string exec = 4;
+}
+
+message FnPullResponse {
+    int64 after = 1;
+    uint32 limit = 2;
+    repeated pb.Fn fn = 3;
+}
+
+service FnService {
+    rpc Create(pb.Fn) returns (pb.Fn) {}
+    rpc Update(pb.Fn) returns (pb.Fn) {}
+    rpc View(pb.Id) returns (pb.Fn) {}
+    rpc Name(FnNameRequest) returns (pb.Fn) {}
+    rpc Delete(pb.Id) returns (pb.MyBool) {}
+    rpc List(FnListRequest) returns (FnListResponse) {}
+    rpc Link(FnLinkRequest) returns (pb.MyBool) {}
+    rpc Clone(CloneFnRequest) returns (pb.MyBool) {}
+    rpc ViewWithDeleted(pb.Id) returns (pb.Fn) {}
+    rpc Pull(FnPullRequest) returns (FnPullResponse) {}
+    rpc Sync(pb.Fn) returns (pb.MyBool) {}
+}
+
+message LogicListRequest {
+    pb.Page page = 1;
+    string device_id = 2;
+    string tags = 3;
+    string type = 4;
+    string exec = 5;
+}
+
+message LogicListResponse {
+    pb.Page page = 1;
+    uint32 count = 2;
+    repeated pb.Logic logic = 3;
+}
+
+message LogicNameRequest {
+    string device_id = 1;
+    string name = 2;
+}
+
+message LogicCloneRequest {
+    string id = 1;
+    string device_id = 2;
+}
+
+message LogicPullRequest {
+    int64 after = 1;
+    uint32 limit = 2;
+    string device_id = 3;
+    string exec = 4;
+}
+
+message LogicPullResponse {
+    int64 after = 1;
+    uint32 limit = 2;
+    repeated pb.Logic logic = 3;
+}
+
+service LogicService {
+    rpc Create(pb.Logic) returns (pb.Logic) {}
+    rpc Update(pb.Logic) returns (pb.Logic) {}
+    rpc View(pb.Id) returns (pb.Logic) {}
+    rpc Name(LogicNameRequest) returns (pb.Logic) {}
+    rpc Delete(pb.Id) returns (pb.MyBool) {}
+    rpc List(LogicListRequest) returns (LogicListResponse) {}
+    rpc Clone(LogicCloneRequest) returns (pb.MyBool) {}
+    rpc ViewWithDeleted(pb.Id) returns (pb.Logic) {}
+    rpc Pull(LogicPullRequest) returns (LogicPullResponse) {}
+    rpc Sync(pb.Logic) returns (pb.MyBool) {}
+}
