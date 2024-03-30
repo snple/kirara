@@ -1,6 +1,7 @@
 package edge
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/pb"
 	"github.com/snple/kirara/pb/edges"
+	"github.com/snple/kirara/pb/nodes"
 	"github.com/snple/kirara/util"
 	"github.com/snple/kirara/util/datatype"
 	"github.com/snple/types"
@@ -1158,4 +1160,36 @@ func (s *AttrService) getUploadValues() map[string]nson.Value {
 	s.uploadCache = make(map[string]nson.Value)
 
 	return values
+}
+
+func (s *AttrService) getUploadValueRequest() (*nodes.AttrValueUploadRequest, error) {
+	values := s.getUploadValues()
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	array := nson.Array{}
+
+	for id, value := range values {
+		k, err := nson.MessageIdFromHex(id)
+		if err != nil {
+			continue
+		}
+
+		array.Push(k)
+		array.Push(value)
+	}
+
+	buffer := new(bytes.Buffer)
+	err := array.Encode(buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	request := &nodes.AttrValueUploadRequest{
+		Id:      util.TimeFormat(time.Now()),
+		Content: buffer.Bytes(),
+	}
+
+	return request, nil
 }

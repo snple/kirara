@@ -237,9 +237,9 @@ func (s *NodeService) ticker() {
 					s.es.Logger().Sugar().Errorf("sync: %v", err)
 				}
 
-				// if err := s.uploadAttrValue(s.ctx); err != nil {
-				// 	s.es.Logger().Sugar().Errorf("upload attr value: %v", err)
-				// }
+				if err := s.uploadAttrValue(s.ctx); err != nil {
+					s.es.Logger().Sugar().Errorf("upload attr value: %v", err)
+				}
 			}
 		}
 	}
@@ -530,19 +530,19 @@ func (s *NodeService) syncTagValue2(ctx context.Context) error {
 	return s.syncTagValueLocalToRemote(ctx)
 }
 
-// func (s *NodeService) uploadAttrValue(ctx context.Context) error {
-// 	request, err := s.es.GetAttr().getUploadValueRequest()
-// 	if err != nil {
-// 		return err
-// 	}
+func (s *NodeService) uploadAttrValue(ctx context.Context) error {
+	request, err := s.es.GetAttr().getUploadValueRequest()
+	if err != nil {
+		return err
+	}
 
-// 	if request == nil {
-// 		return nil
-// 	}
+	if request == nil {
+		return nil
+	}
 
-// 	ctx = metadata.SetToken(ctx, s.GetToken())
+	ctx = metadata.SetToken(ctx, s.GetToken())
 
-// 	_, err = s.AttrServiceClient().Upload(ctx, request)
+	_, err = s.AttrServiceClient().Upload(ctx, request)
 
-// 	return err
-// }
+	return err
+}
