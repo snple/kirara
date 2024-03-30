@@ -55,8 +55,7 @@ func (p *Proc) start() {
 		}
 	}()
 
-	p.closeWG.Add(1)
-	defer p.closeWG.Done()
+	defer p.closeWG.Wait()
 
 	defer p.cancel()
 

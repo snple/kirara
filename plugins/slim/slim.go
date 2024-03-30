@@ -293,8 +293,6 @@ func (ss *SlimSlot) startProc(fn *pb.Fn) {
 
 		proc.start()
 
-		proc.closeWG.Wait()
-
 		ss.lock.Lock()
 		delete(ss.procs, fn.GetId())
 		ss.lock.Unlock()

@@ -16,7 +16,6 @@ func Connect(conn *source.Conn) (source.Adapter, error) {
 	client := gos7.NewTCPClientHandler(config.Addr, config.Rank, config.Slot)
 	err = client.Connect()
 	if err != nil {
-		conn.Logger().Sugar().Errorf("GoS7 source connect: %v, source: %v", err, conn.Source())
 		return nil, err
 	}
 

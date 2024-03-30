@@ -14,7 +14,7 @@ import (
 )
 
 type Conn struct {
-	s      *TagIOSlot
+	s      *SourceSlot
 	source *pb.Source
 
 	updated int64
@@ -32,7 +32,7 @@ type Conn struct {
 	adapter Adapter
 }
 
-func newConn(s *TagIOSlot, source *pb.Source) (*Conn, error) {
+func newConn(s *SourceSlot, source *pb.Source) (*Conn, error) {
 	connect, has := GetAdapter(source.GetSource())
 	if !has {
 		return nil, fmt.Errorf("adapter %v not found", source.GetSource())

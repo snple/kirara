@@ -15,16 +15,18 @@ type ConfigStruct struct {
 	Secret      string      `toml:"secret"`
 	DB          DB          `toml:"db"`
 	BadgerDB    BadgerDB    `toml:"badger"`
+	NodeClient  GRPCClient  `toml:"node"`
 	EdgeService GRPCService `toml:"edge"`
 	SlotService GRPCService `toml:"slot"`
+	Sync        Sync        `toml:"sync"`
 	Status      Status      `toml:"status"`
 	Gin         Gin         `toml:"gin"`
 	WebService  HttpService `toml:"web"`
 	ApiService  HttpService `toml:"api"`
 	Statics     []Static    `toml:"static"`
 	Upload      Upload      `toml:"upload"`
-	GoS7        GoS7        `toml:"gos7"`
 	Slim        Slim        `toml:"slim"`
+	Source      Source      `toml:"source"`
 }
 
 type DB struct {
@@ -41,16 +43,6 @@ type GRPCClient struct {
 	Enable             bool   `toml:"enable"`
 	Addr               string `toml:"addr"`
 	TLS                bool   `toml:"tls"`
-	CA                 string `toml:"ca"`
-	Cert               string `toml:"cert"`
-	Key                string `toml:"key"`
-	ServerName         string `toml:"server_name"`
-	InsecureSkipVerify bool   `toml:"insecure_skip_verify"`
-}
-
-type QuicClient struct {
-	Enable             bool   `toml:"enable"`
-	Addr               string `toml:"addr"`
 	CA                 string `toml:"ca"`
 	Cert               string `toml:"cert"`
 	Key                string `toml:"key"`
@@ -107,12 +99,6 @@ type Upload struct {
 	Batch    int  `toml:"batch"`
 }
 
-type GoS7 struct {
-	Enable       bool `toml:"enable"`
-	Interval     int  `toml:"interval"`
-	ReadInterval int  `toml:"read_interval"`
-}
-
 type Slim struct {
 	Enable   bool   `toml:"enable"`
 	Interval int    `toml:"interval"`
@@ -120,11 +106,12 @@ type Slim struct {
 	CacheTTL int    `toml:"cache_ttl"`
 }
 
-type Lua struct {
-	Enable   bool   `toml:"enable"`
-	Interval int    `toml:"interval"`
-	BBolt    string `toml:"bbolt"`
-	CacheTTL int    `toml:"cache_ttl"`
+type Source struct {
+	Enable       bool `toml:"enable"`
+	Interval     int  `toml:"interval"`
+	ReadInterval int  `toml:"read_interval"`
+	GoS7         bool `toml:"gos7"`
+	Modbus       bool `toml:"modbus"`
 }
 
 func DefaultConfig() ConfigStruct {
@@ -136,6 +123,13 @@ func DefaultConfig() ConfigStruct {
 		BadgerDB: BadgerDB{
 			Path:     "badger",
 			InMemory: true,
+		},
+		NodeClient: GRPCClient{
+			Addr: "127.0.0.1:6007",
+			TLS:  true,
+			CA:   "certs/ca.crt",
+			Cert: "certs/client.crt",
+			Key:  "certs/client.key",
 		},
 		EdgeService: GRPCService{
 			Addr: "127.0.0.1:6010",
@@ -151,6 +145,12 @@ func DefaultConfig() ConfigStruct {
 			Cert: "certs/server.crt",
 			Key:  "certs/server.key",
 		},
+		Sync: Sync{
+			TokenRefresh: 60 * 30,
+			Link:         60,
+			Interval:     60,
+			Realtime:     false,
+		},
 		Status: Status{
 			LinkTTL: 3 * 60,
 		},
@@ -165,8 +165,8 @@ func DefaultConfig() ConfigStruct {
 			Interval: 60,
 			Batch:    1000,
 		},
-		GoS7: GoS7{
-			Interval:     60,
+		Source: Source{
+			Interval:     30,
 			ReadInterval: 30,
 		},
 		Slim: Slim{

@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type TagIOSlot struct {
+type SourceSlot struct {
 	es *edge.EdgeService
 
 	conns   map[string]*Conn
@@ -23,21 +23,21 @@ type TagIOSlot struct {
 	cancel  func()
 	closeWG sync.WaitGroup
 
-	dopts tagIOOptions
+	dopts sourceOptions
 }
 
-func GoS7(es *edge.EdgeService, opts ...TagIOOption) (*TagIOSlot, error) {
+func Source(es *edge.EdgeService, opts ...SourceOption) (*SourceSlot, error) {
 	ctx, cancel := context.WithCancel(es.Context())
 
-	ts := &TagIOSlot{
+	ts := &SourceSlot{
 		es:     es,
 		conns:  make(map[string]*Conn),
 		ctx:    ctx,
 		cancel: cancel,
-		dopts:  defaultTagIOOptions(),
+		dopts:  defaultSourceOptions(),
 	}
 
-	for _, opt := range extratagIOOptions {
+	for _, opt := range extraSourceOptions {
 		opt.apply(&ts.dopts)
 	}
 
@@ -48,11 +48,11 @@ func GoS7(es *edge.EdgeService, opts ...TagIOOption) (*TagIOSlot, error) {
 	return ts, nil
 }
 
-func (ts *TagIOSlot) Start() {
+func (ts *SourceSlot) Start() {
 	ts.closeWG.Add(1)
 	defer ts.closeWG.Done()
 
-	ts.logger().Info("TagIO slot started")
+	ts.logger().Info("Source slot started")
 
 	go ts.waitDeviceUpdated()
 
@@ -66,18 +66,18 @@ func (ts *TagIOSlot) Start() {
 		case <-ticker.C:
 			err := ts.ticker()
 			if err != nil {
-				ts.logger().Sugar().Errorf("TagIO ticker: %v", err)
+				ts.logger().Sugar().Errorf("Source ticker: %v", err)
 			}
 		}
 	}
 }
 
-func (ts *TagIOSlot) Stop() {
+func (ts *SourceSlot) Stop() {
 	ts.cancel()
 	ts.closeWG.Wait()
 }
 
-func (ts *TagIOSlot) ticker() error {
+func (ts *SourceSlot) ticker() error {
 	request := edges.SourceListRequest{
 		Page: &pb.Page{
 			Limit: 1000,
@@ -97,7 +97,7 @@ func (ts *TagIOSlot) ticker() error {
 	return nil
 }
 
-func (ts *TagIOSlot) waitDeviceUpdated() {
+func (ts *SourceSlot) waitDeviceUpdated() {
 	ts.closeWG.Add(1)
 	defer ts.closeWG.Done()
 
@@ -113,13 +113,13 @@ func (ts *TagIOSlot) waitDeviceUpdated() {
 
 			err := ts.checkUpdated()
 			if err != nil {
-				ts.logger().Sugar().Errorf("TagIO checkUpdated: %v", err)
+				ts.logger().Sugar().Errorf("Source checkUpdated: %v", err)
 			}
 		}
 	}
 }
 
-func (ts *TagIOSlot) checkUpdated() error {
+func (ts *SourceSlot) checkUpdated() error {
 	if err := ts.checkSourceUpdated(); err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (ts *TagIOSlot) checkUpdated() error {
 	return ts.checkTagUpdated()
 }
 
-func (ts *TagIOSlot) checkSourceUpdated() error {
+func (ts *SourceSlot) checkSourceUpdated() error {
 	sourceUpdated, err := ts.es.GetSync().GetSourceUpdated(ts.ctx, &pb.MyEmpty{})
 	if err != nil {
 		return err
@@ -176,21 +176,21 @@ func (ts *TagIOSlot) checkSourceUpdated() error {
 	return nil
 }
 
-func (ts *TagIOSlot) getUpdated() int64 {
+func (ts *SourceSlot) getUpdated() int64 {
 	ts.lock.RLock()
 	defer ts.lock.RUnlock()
 
 	return ts.updated
 }
 
-func (ts *TagIOSlot) setUpdated(updated int64) {
+func (ts *SourceSlot) setUpdated(updated int64) {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 
 	ts.updated = updated
 }
 
-func (ts *TagIOSlot) startConn(source *pb.Source) {
+func (ts *SourceSlot) startConn(source *pb.Source) {
 	if source.GetSource() == "" || source.GetParams() == "" || source.GetStatus() != consts.ON {
 		return
 	}
@@ -226,13 +226,13 @@ func (ts *TagIOSlot) startConn(source *pb.Source) {
 	}()
 }
 
-func (ts *TagIOSlot) checkConn(source *pb.Source) {
+func (ts *SourceSlot) checkConn(source *pb.Source) {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 
 	if conn, ok := ts.conns[source.GetId()]; ok {
 		if source.GetStatus() == consts.ON && source.GetName() == conn.source.GetName() &&
-			source.GetParams() == conn.source.GetParams() {
+			source.GetParams() == conn.source.GetParams() && source.GetParams() == conn.source.GetConfig() {
 			return
 		}
 
@@ -240,71 +240,71 @@ func (ts *TagIOSlot) checkConn(source *pb.Source) {
 	}
 }
 
-func (ts *TagIOSlot) checkTagUpdated() error {
+func (ts *SourceSlot) checkTagUpdated() error {
 	ts.lock.RLock()
 	defer ts.lock.RUnlock()
 
 	for _, conn := range ts.conns {
 		if err := conn.checkTagUpdated(); err != nil {
-			ts.logger().Sugar().Errorf("TagIO checkTagUpdated: %v", err)
+			ts.logger().Sugar().Errorf("Source checkTagUpdated: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func (ts *TagIOSlot) logger() *zap.Logger {
+func (ts *SourceSlot) logger() *zap.Logger {
 	return ts.es.Logger()
 }
 
-type tagIOOptions struct {
+type sourceOptions struct {
 	debug            bool
 	tickerInterval   time.Duration
 	readDataInterval time.Duration
 }
 
-func defaultTagIOOptions() tagIOOptions {
-	return tagIOOptions{
+func defaultSourceOptions() sourceOptions {
+	return sourceOptions{
 		debug:            false,
 		tickerInterval:   60 * time.Second,
 		readDataInterval: 30 * time.Second,
 	}
 }
 
-type TagIOOption interface {
-	apply(*tagIOOptions)
+type SourceOption interface {
+	apply(*sourceOptions)
 }
 
-var extratagIOOptions []TagIOOption
+var extraSourceOptions []SourceOption
 
-type funcTagIOOption struct {
-	f func(*tagIOOptions)
+type funcSourceOption struct {
+	f func(*sourceOptions)
 }
 
-func (fdo *funcTagIOOption) apply(do *tagIOOptions) {
+func (fdo *funcSourceOption) apply(do *sourceOptions) {
 	fdo.f(do)
 }
 
-func newFuncTagIOOption(f func(*tagIOOptions)) *funcTagIOOption {
-	return &funcTagIOOption{
+func newFuncSourceOption(f func(*sourceOptions)) *funcSourceOption {
+	return &funcSourceOption{
 		f: f,
 	}
 }
 
-func WithDebug(debug bool) TagIOOption {
-	return newFuncTagIOOption(func(o *tagIOOptions) {
+func WithDebug(debug bool) SourceOption {
+	return newFuncSourceOption(func(o *sourceOptions) {
 		o.debug = debug
 	})
 }
 
-func WithTickerInterval(d time.Duration) TagIOOption {
-	return newFuncTagIOOption(func(o *tagIOOptions) {
+func WithTickerInterval(d time.Duration) SourceOption {
+	return newFuncSourceOption(func(o *sourceOptions) {
 		o.tickerInterval = d
 	})
 }
 
-func WithReadDataInterval(d time.Duration) TagIOOption {
-	return newFuncTagIOOption(func(o *tagIOOptions) {
+func WithReadDataInterval(d time.Duration) SourceOption {
+	return newFuncSourceOption(func(o *sourceOptions) {
 		o.readDataInterval = d
 	})
 }

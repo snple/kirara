@@ -26,13 +26,17 @@ import (
 	"github.com/snple/kirara/http/edge/api"
 	"github.com/snple/kirara/http/edge/web"
 	"github.com/snple/kirara/plugins/emu"
+	"github.com/snple/kirara/plugins/gos7"
+	"github.com/snple/kirara/plugins/modbus"
 	"github.com/snple/kirara/plugins/slim"
+	"github.com/snple/kirara/plugins/source"
 	"github.com/snple/kirara/slot"
 	"github.com/snple/kirara/util"
 	"github.com/snple/kirara/util/compress/zstd"
 	"github.com/uptrace/bun"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -88,6 +92,13 @@ func main() {
 		edgeOpts = append(edgeOpts, edge.WithDeviceID(config.Config.DeviceID, config.Config.Secret))
 		edgeOpts = append(edgeOpts, edge.WithLinkTTL(time.Second*time.Duration(config.Config.Status.LinkTTL)))
 
+		edgeOpts = append(edgeOpts, edge.WithSync(edge.SyncOptions{
+			TokenRefresh: time.Second * time.Duration(config.Config.Sync.TokenRefresh),
+			Link:         time.Second * time.Duration(config.Config.Sync.Link),
+			Interval:     time.Second * time.Duration(config.Config.Sync.Interval),
+			Realtime:     config.Config.Sync.Realtime,
+		}))
+
 		badgerOptions := func() badger.Options {
 			if config.Config.BadgerDB.InMemory {
 				return badger.DefaultOptions("").WithInMemory(true)
@@ -97,6 +108,44 @@ func main() {
 		}()
 
 		edgeOpts = append(edgeOpts, edge.WithBadger(badgerOptions))
+	}
+
+	if config.Config.NodeClient.Enable {
+		kacp := keepalive.ClientParameters{
+			Time:                120 * time.Second, // send pings every 120 seconds if there is no activity
+			Timeout:             10 * time.Second,  // wait 10 second for ping ack before considering the connection dead
+			PermitWithoutStream: true,              // send pings even without active streams
+		}
+
+		grpcOpts := []grpc.DialOption{
+			grpc.WithKeepaliveParams(kacp),
+			grpc.WithDefaultCallOptions(grpc.UseCompressor(zstd.Name)),
+		}
+
+		zstd.Register()
+
+		if config.Config.NodeClient.TLS {
+			tlsConfig, err := util.LoadClientCert(
+				config.Config.NodeClient.CA,
+				config.Config.NodeClient.Cert,
+				config.Config.NodeClient.Key,
+				config.Config.NodeClient.ServerName,
+				config.Config.NodeClient.InsecureSkipVerify,
+			)
+			if err != nil {
+				log.Logger.Sugar().Fatalf("LoadClientCert: %v", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		} else {
+			grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		}
+
+		edgeOpts = append(edgeOpts, edge.WithNode(edge.NodeOptions{
+			Enable:      true,
+			Addr:        config.Config.NodeClient.Addr,
+			GRPCOptions: grpcOpts,
+		}))
 	}
 
 	es, err := edge.Edge(bundb, edgeOpts...)
@@ -321,17 +370,26 @@ func main() {
 		}
 	}
 
-	// if config.Config.GoS7.Enable {
-	// 	plugin, err := gos7.GoS7(es,
-	// 		gos7.WithTickerInterval(time.Second*time.Duration(config.Config.GoS7.Interval)),
-	// 		gos7.WithReadDataInterval(time.Second*time.Duration(config.Config.GoS7.ReadInterval)))
-	// 	if err != nil {
-	// 		log.Logger.Sugar().Fatalf("GoS7: %v", err)
-	// 	}
+	if config.Config.Source.Enable {
+		plugin, err := source.Source(es,
+			source.WithTickerInterval(time.Second*time.Duration(config.Config.Source.Interval)),
+			source.WithReadDataInterval(time.Second*time.Duration(config.Config.Source.ReadInterval)),
+		)
+		if err != nil {
+			log.Logger.Sugar().Fatalf("Source: %v", err)
+		}
 
-	// 	go plugin.Start()
-	// 	defer plugin.Stop()
-	// }
+		go plugin.Start()
+		defer plugin.Stop()
+
+		if config.Config.Source.GoS7 {
+			source.SetAdapter("GOS7", gos7.Connect)
+		}
+
+		if config.Config.Source.Modbus {
+			source.SetAdapter("MODBUS", modbus.Connect)
+		}
+	}
 
 	if config.Config.Slim.Enable {
 		slim, err := slim.Slim(es,
