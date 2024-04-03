@@ -49,10 +49,12 @@ func newConn(s *SourceSlot, source *pb.Source) (*Conn, error) {
 
 	adapter, err := connect(conn)
 	if err != nil {
-		s.logger().Sugar().Errorf("adapter %v connect error %v, source: %v", source.GetSource(), err, source)
+		s.logger().Sugar().Errorf("adapter %v connect error %v, source: %v", source.GetSource(), err, source.GetName())
 		return nil, err
 	}
 	conn.adapter = adapter
+
+	s.logger().Sugar().Infof("adapter %v connect, source: %v", source.GetSource(), source.GetName())
 
 	err = conn.init()
 	if err != nil {

@@ -30,24 +30,24 @@ func (s *GoS7) writeTag(tag source.Tag, value string) (err error) {
 
 		switch addr.Area {
 		case AreaPE:
-			err = client.AGReadEB(addr.Address, addr.Size, bytes)
+			err = client.AGReadEB(addr.Addr, addr.Size, bytes)
 		case AreaPA:
-			err = client.AGReadAB(addr.Address, addr.Size, bytes)
+			err = client.AGReadAB(addr.Addr, addr.Size, bytes)
 		case AreaMK:
-			err = client.AGReadMB(addr.Address, addr.Size, bytes)
+			err = client.AGReadMB(addr.Addr, addr.Size, bytes)
 		case AreaDB:
-			err = client.AGReadDB(addr.DB, addr.Address, addr.Size, bytes)
+			err = client.AGReadDB(addr.DB, addr.Addr, addr.Size, bytes)
 		case AreaCT:
-			err = client.AGReadCT(addr.Address, addr.Size, bytes)
+			err = client.AGReadCT(addr.Addr, addr.Size, bytes)
 		case AreaTM:
-			err = client.AGReadTM(addr.Address, addr.Size, bytes)
+			err = client.AGReadTM(addr.Addr, addr.Size, bytes)
 		default:
 			err = fmt.Errorf("unsupport area: %v", addr.Area)
 		}
 
 		if err != nil {
 			s.conn.Logger().Sugar().Errorf("read error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
-				tag.Raw.GetId(), addr.Area, addr.DB, addr.Address, addr.Size, err)
+				tag.Raw.GetId(), addr.Area, addr.DB, addr.Addr, addr.Size, err)
 			return err
 		}
 
@@ -118,24 +118,24 @@ func (s *GoS7) writeTag(tag source.Tag, value string) (err error) {
 	if len(writeBytes) > 0 {
 		switch addr.Area {
 		case AreaPE:
-			err = client.AGWriteEB(addr.Address, addr.Size, writeBytes)
+			err = client.AGWriteEB(addr.Addr, addr.Size, writeBytes)
 		case AreaPA:
-			err = client.AGWriteAB(addr.Address, addr.Size, writeBytes)
+			err = client.AGWriteAB(addr.Addr, addr.Size, writeBytes)
 		case AreaMK:
-			err = client.AGWriteMB(addr.Address, addr.Size, writeBytes)
+			err = client.AGWriteMB(addr.Addr, addr.Size, writeBytes)
 		case AreaDB:
-			err = client.AGWriteDB(addr.DB, addr.Address, addr.Size, writeBytes)
+			err = client.AGWriteDB(addr.DB, addr.Addr, addr.Size, writeBytes)
 		case AreaCT:
-			err = client.AGWriteCT(addr.Address, addr.Size, writeBytes)
+			err = client.AGWriteCT(addr.Addr, addr.Size, writeBytes)
 		case AreaTM:
-			err = client.AGWriteTM(addr.Address, addr.Size, writeBytes)
+			err = client.AGWriteTM(addr.Addr, addr.Size, writeBytes)
 		default:
 			err = fmt.Errorf("unsupport area: %v", addr.Area)
 		}
 
 		if err != nil {
 			s.conn.Logger().Sugar().Errorf("write error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
-				tag.Raw.GetId(), addr.Area, addr.DB, addr.Address, addr.Size, err)
+				tag.Raw.GetId(), addr.Area, addr.DB, addr.Addr, addr.Size, err)
 
 			return err
 		}

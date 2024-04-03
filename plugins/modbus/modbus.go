@@ -1,6 +1,7 @@
 package modbus
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -23,8 +24,15 @@ func Connect(conn *source.Conn) (source.Adapter, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	} else if config.isRTU {
 		panic("todo")
+	} else {
+		return nil, errors.New("only support tcp and rtu")
+	}
+
+	err = client.Open()
+	if err != nil {
+		return nil, err
 	}
 
 	s := &Modbus{

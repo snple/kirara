@@ -29,20 +29,20 @@ func (s *Modbus) readTags(tags map[string]source.Tag) (err error) {
 
 			switch group.area {
 			case "0":
-				values, err = s.client.ReadCoils(group.start, group.end-group.start)
+				values, err = s.client.ReadCoils(group.addr, group.end-group.addr)
 			case "1":
-				values, err = s.client.ReadDiscreteInputs(group.start, group.end-group.start)
+				values, err = s.client.ReadDiscreteInputs(group.addr, group.end-group.addr)
 			case "3":
-				buffer, err = s.client.ReadRawBytes(group.start, (group.end-group.start)*2, modbus.INPUT_REGISTER)
+				buffer, err = s.client.ReadRawBytes(group.addr, group.end-group.addr, modbus.INPUT_REGISTER)
 			case "4":
-				buffer, err = s.client.ReadRawBytes(group.start, (group.end-group.start)*2, modbus.HOLDING_REGISTER)
+				buffer, err = s.client.ReadRawBytes(group.addr, group.end-group.addr, modbus.HOLDING_REGISTER)
 			default:
 				err = fmt.Errorf("unsupport area: %v", group.area)
 			}
 
 			if err != nil {
 				s.conn.Logger().Sugar().Errorf("read error: area: %v, start: %v, err: %v",
-					group.area, group.start, err)
+					group.area, group.addr, err)
 
 				return err
 			}
@@ -52,7 +52,7 @@ func (s *Modbus) readTags(tags map[string]source.Tag) (err error) {
 				for _, tag := range group.tagList {
 					addr := GetAddr(tag)
 
-					value := values[addr.Address-group.start]
+					value := values[addr.Addr-group.addr]
 
 					s.conn.SyncTagValue(tag.Raw.GetId(), fmt.Sprintf("%v", value))
 
@@ -64,7 +64,7 @@ func (s *Modbus) readTags(tags map[string]source.Tag) (err error) {
 				for _, tag := range group.tagList {
 					addr := GetAddr(tag)
 
-					start := (addr.Address - group.start) * 2
+					start := addr.Addr*2 - group.addr*2
 					end := start + addr.Size
 					bytes := buffer[start:end]
 
@@ -104,20 +104,20 @@ func (s *Modbus) readTag(tag source.Tag) (value string, err error) {
 
 	switch addr.Area {
 	case "0":
-		ret, err = s.client.ReadCoil(addr.Address)
+		ret, err = s.client.ReadCoil(addr.Addr)
 	case "1":
-		ret, err = s.client.ReadDiscreteInput(addr.Address)
+		ret, err = s.client.ReadDiscreteInput(addr.Addr)
 	case "3":
-		buffer, err = s.client.ReadRawBytes(addr.Address, addr.Size*2, modbus.INPUT_REGISTER)
+		buffer, err = s.client.ReadRawBytes(addr.Addr, addr.Size, modbus.INPUT_REGISTER)
 	case "4":
-		buffer, err = s.client.ReadRawBytes(addr.Address, addr.Size*2, modbus.HOLDING_REGISTER)
+		buffer, err = s.client.ReadRawBytes(addr.Addr, addr.Size, modbus.HOLDING_REGISTER)
 	default:
 		err = fmt.Errorf("unsupport area: %v", addr.Area)
 	}
 
 	if err != nil {
 		s.conn.Logger().Sugar().Errorf("read error: id: %v, area: %v, start: %v, size: %v, err: %v",
-			tag.Raw.GetId(), addr.Area, addr.Address, addr.Size, err)
+			tag.Raw.GetId(), addr.Area, addr.Addr, addr.Size, err)
 		return "", err
 	}
 
@@ -145,18 +145,6 @@ func (s *Modbus) readTag(tag source.Tag) (value string, err error) {
 	return "", nil
 }
 
-func groupTags(tags map[string]source.Tag) map[string][]readGroup {
-	tags2 := make([]*source.Tag, 0, len(tags))
-
-	for _, tag := range tags {
-		tags2 = append(tags2, &tag)
-	}
-
-	sort.Sort(tagsSort(tags2))
-
-	return group(tags2)
-}
-
 // sort
 type tagsSort []*source.Tag
 
@@ -169,13 +157,26 @@ func (s tagsSort) Swap(i, j int) {
 }
 
 func (s tagsSort) Less(i, j int) bool {
-	return GetAddr(s[i]).Address < GetAddr(s[j]).Address
+	return GetAddr(s[i]).Addr < GetAddr(s[j]).Addr
 }
 
-// read group
+const block = 64
+
+func groupTags(tags map[string]source.Tag) map[string][]readGroup {
+	tags2 := make([]*source.Tag, 0, len(tags))
+
+	for _, tag := range tags {
+		tags2 = append(tags2, &tag)
+	}
+
+	sort.Sort(tagsSort(tags2))
+
+	return group2(tags2)
+}
+
 type readGroup struct {
 	area    string
-	start   uint16
+	addr    uint16
 	end     uint16
 	tagList []*source.Tag
 }
@@ -183,17 +184,20 @@ type readGroup struct {
 func newReadGroup(tag *source.Tag, addr *Addr) readGroup {
 	group := readGroup{
 		area:    addr.Area,
-		start:   addr.Address,
-		end:     addr.Address + addr.Size - 1,
+		addr:    addr.Addr,
 		tagList: []*source.Tag{tag},
+	}
+
+	if addr.Area == "0" || addr.Area == "1" {
+		group.end = addr.Addr + addr.Size
+	} else {
+		group.end = addr.Addr*2 + addr.Size
 	}
 
 	return group
 }
 
-const block = 64
-
-func group(tags []*source.Tag) map[string][]readGroup {
+func group2(tags []*source.Tag) map[string][]readGroup {
 	groupMap := make(map[string][]readGroup)
 
 	for _, tag := range tags {
@@ -202,13 +206,22 @@ func group(tags []*source.Tag) map[string][]readGroup {
 		key := addr.Area
 
 		if groups, ok := groupMap[key]; ok {
-			if (addr.Address + addr.Size - groups[len(groups)-1].start) < block {
-				groups[len(groups)-1].end = addr.Address + addr.Size
-				groups[len(groups)-1].tagList = append(groups[len(groups)-1].tagList, tag)
+			if addr.Area == "0" || addr.Area == "1" {
+				if (addr.Addr+addr.Size-groups[len(groups)-1].addr)*2 < block {
+					groups[len(groups)-1].end = addr.Addr + addr.Size
+					groups[len(groups)-1].tagList = append(groups[len(groups)-1].tagList, tag)
+				} else {
+					group := newReadGroup(tag, addr)
+					groupMap[key] = append(groupMap[key], group)
+				}
 			} else {
-				group := newReadGroup(tag, addr)
-
-				groupMap[key] = append(groupMap[key], group)
+				if (addr.Addr*2 + addr.Size - groups[len(groups)-1].addr) < block {
+					groups[len(groups)-1].end = addr.Addr*2 + addr.Size - groups[len(groups)-1].addr
+					groups[len(groups)-1].tagList = append(groups[len(groups)-1].tagList, tag)
+				} else {
+					group := newReadGroup(tag, addr)
+					groupMap[key] = append(groupMap[key], group)
+				}
 			}
 		} else {
 			group := newReadGroup(tag, addr)

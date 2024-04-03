@@ -5,11 +5,11 @@ import (
 )
 
 type Addr struct {
-	Area    string
-	Name    string
-	Address uint16
-	Size    uint16
-	Bit     uint8
+	Area string
+	Name string
+	Addr uint16
+	Size uint16
+	Bit  uint8
 }
 
 var type_size = map[string]uint16{
@@ -32,7 +32,7 @@ func ParseTagAddr(addr string, dataType string) (*Addr, error) {
 	var subaddress string
 	rs.Area = addr[0:1]
 	subaddress = addr[1:]
-	rs.Address, rs.Bit = ParseTagSubAddr(subaddress)
+	rs.Addr, rs.Bit = ParseTagSubAddr(subaddress)
 	rs.Size = type_size[dataType]
 
 	if rs.Area == "0" || rs.Area == "1" {

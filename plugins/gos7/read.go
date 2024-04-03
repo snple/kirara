@@ -29,17 +29,17 @@ func (s *GoS7) readTags(tags map[string]source.Tag) (err error) {
 			client := gos7.NewClient(s.client)
 			switch group.area {
 			case AreaPE:
-				err = client.AGReadEB(group.start, group.end-group.start+1, buffer)
+				err = client.AGReadEB(group.start, group.end-group.start, buffer)
 			case AreaPA:
-				err = client.AGReadAB(group.start, group.end-group.start+1, buffer)
+				err = client.AGReadAB(group.start, group.end-group.start, buffer)
 			case AreaMK:
-				err = client.AGReadMB(group.start, group.end-group.start+1, buffer)
+				err = client.AGReadMB(group.start, group.end-group.start, buffer)
 			case AreaDB:
-				err = client.AGReadDB(group.db, group.start, group.end-group.start+1, buffer)
+				err = client.AGReadDB(group.db, group.start, group.end-group.start, buffer)
 			case AreaCT:
-				err = client.AGReadCT(group.start, group.end-group.start+1, buffer)
+				err = client.AGReadCT(group.start, group.end-group.start, buffer)
 			case AreaTM:
-				err = client.AGReadTM(group.start, group.end-group.start+1, buffer)
+				err = client.AGReadTM(group.start, group.end-group.start, buffer)
 			default:
 				err = fmt.Errorf("unsupport area: %v", group.area)
 			}
@@ -54,7 +54,7 @@ func (s *GoS7) readTags(tags map[string]source.Tag) (err error) {
 			for _, tag := range group.tagList {
 				addr := GetAddr(tag)
 
-				bytes := buffer[addr.Address-group.start : (addr.Address-group.start)+addr.Size]
+				bytes := buffer[addr.Addr-group.start : (addr.Addr-group.start)+addr.Size]
 
 				value, err := convertBytesToValue(&s.config, tag, bytes)
 				if err != nil {
@@ -92,24 +92,24 @@ func (s *GoS7) readTag(tag source.Tag) (value string, err error) {
 
 	switch addr.Area {
 	case AreaPE:
-		err = client.AGReadEB(addr.Address, addr.Size, buffer)
+		err = client.AGReadEB(addr.Addr, addr.Size, buffer)
 	case AreaPA:
-		err = client.AGReadAB(addr.Address, addr.Size, buffer)
+		err = client.AGReadAB(addr.Addr, addr.Size, buffer)
 	case AreaMK:
-		err = client.AGReadMB(addr.Address, addr.Size, buffer)
+		err = client.AGReadMB(addr.Addr, addr.Size, buffer)
 	case AreaDB:
-		err = client.AGReadDB(addr.DB, addr.Address, addr.Size, buffer)
+		err = client.AGReadDB(addr.DB, addr.Addr, addr.Size, buffer)
 	case AreaCT:
-		err = client.AGReadCT(addr.Address, addr.Size, buffer)
+		err = client.AGReadCT(addr.Addr, addr.Size, buffer)
 	case AreaTM:
-		err = client.AGReadTM(addr.Address, addr.Size, buffer)
+		err = client.AGReadTM(addr.Addr, addr.Size, buffer)
 	default:
 		err = fmt.Errorf("unsupport area: %v", addr.Area)
 	}
 
 	if err != nil {
 		s.conn.Logger().Sugar().Errorf("read error: id: %v, area: %v, db: %v, start: %v, size: %v, err: %v",
-			tag.Raw.GetId(), addr.Area, addr.DB, addr.Address, addr.Size, err)
+			tag.Raw.GetId(), addr.Area, addr.DB, addr.Addr, addr.Size, err)
 		return "", err
 	}
 
@@ -150,7 +150,7 @@ func (s tagsSort) Swap(i, j int) {
 }
 
 func (s tagsSort) Less(i, j int) bool {
-	return GetAddr(s[i]).Address < GetAddr(s[j]).Address
+	return GetAddr(s[i]).Addr < GetAddr(s[j]).Addr
 }
 
 type readGroup struct {
@@ -165,8 +165,8 @@ func newReadGroup(tag *source.Tag, addr *Addr) readGroup {
 	group := readGroup{
 		area:    addr.Area,
 		db:      addr.DB,
-		start:   addr.Address,
-		end:     addr.Address + addr.Size - 1,
+		start:   addr.Addr,
+		end:     addr.Addr + addr.Size,
 		tagList: []*source.Tag{tag},
 	}
 
@@ -184,8 +184,8 @@ func group(tags []*source.Tag) map[string][]readGroup {
 		key := fmt.Sprintf("%v:%v", addr.Area, addr.DB)
 
 		if groups, ok := groupMap[key]; ok {
-			if (addr.Address + addr.Size - groups[len(groups)-1].start) < block {
-				groups[len(groups)-1].end = addr.Address + addr.Size - 1
+			if (addr.Addr + addr.Size - groups[len(groups)-1].start) < block {
+				groups[len(groups)-1].end = addr.Addr + addr.Size
 				groups[len(groups)-1].tagList = append(groups[len(groups)-1].tagList, tag)
 			} else {
 				group := newReadGroup(tag, addr)

@@ -28,9 +28,9 @@ func (s *Modbus) writeTag(tag source.Tag, value string) (err error) {
 			}
 
 			if value == "true" || value == "1" {
-				return s.client.WriteCoil(addr.Address, true)
+				return s.client.WriteCoil(addr.Addr, true)
 			} else if value == "false" || value == "0" {
-				return s.client.WriteCoil(addr.Address, false)
+				return s.client.WriteCoil(addr.Addr, false)
 			}
 		}
 	case "4":
@@ -55,7 +55,7 @@ func (s *Modbus) writeTag(tag source.Tag, value string) (err error) {
 				s.conn.Logger().Sugar().Debugf("write tag: %v %v %v %v -> %v", tag.Raw.GetId(), tag.Raw.GetName(), tag.Raw.GetAddress(), bytes, value)
 			}
 
-			return s.client.WriteRawBytes(addr.Address, bytes)
+			return s.client.WriteRawBytes(addr.Addr, bytes)
 		}
 	}
 

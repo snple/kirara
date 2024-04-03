@@ -17,6 +17,7 @@ type Config struct {
 	IsHighWordFirst bool   `cfg:"isHighWordFirst,default=true"`
 	Debug           bool   `cfg:"debug"`
 	isTCP           bool
+	isRTU           bool
 }
 
 func ParseConfig(params string) (Config, error) {
@@ -42,7 +43,9 @@ func ParseConfig(params string) (Config, error) {
 
 	if strings.HasPrefix(config.Addr, "tcp://") {
 		config.isTCP = true
-	} else if !strings.HasPrefix(config.Addr, "rtu://") {
+	} else if strings.HasPrefix(config.Addr, "rtu://") {
+		config.isRTU = true
+	} else {
 		return config, errors.New("config error, addr must begin with tcp or rtu")
 	}
 

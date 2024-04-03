@@ -6,13 +6,12 @@ import (
 )
 
 type Addr struct {
-	Addr    string
-	Format  string
-	Area    int
-	DB      int
-	Address int
-	Size    int
-	Bit     int
+	Format string
+	Area   int
+	DB     int
+	Addr   int
+	Size   int
+	Bit    int
 }
 
 var typeSize = map[string]int{
@@ -45,7 +44,6 @@ const (
 
 func ParseTagAddr(addr string) (*Addr, error) {
 	var rs Addr
-	rs.Addr = addr
 
 	var subaddress string
 	// var DB_No = 0
@@ -91,7 +89,7 @@ func ParseTagAddr(addr string) (*Addr, error) {
 		subaddress = addr[1:]
 	}
 
-	rs.Format, rs.Address, rs.Bit = ParseTagSubAddr(subaddress)
+	rs.Format, rs.Addr, rs.Bit = ParseTagSubAddr(subaddress)
 	rs.Size = typeSize[rs.Format]
 	//rs.Cmd = [4]int{S7Area[rs.Area], DB_No, rs.Address, rs.Size}
 	return &rs, nil
