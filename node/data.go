@@ -44,7 +44,7 @@ func (s *DataService) Upload(ctx context.Context, in *nodes.DataUploadRequest) (
 		ContentType: in.GetContentType(),
 		Content:     in.GetContent(),
 		DeviceId:    deviceID,
-		Cache:       in.GetCache(),
+		Realtime:    in.GetRealtime(),
 		Save:        in.GetSave(),
 	}
 

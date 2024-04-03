@@ -9,7 +9,7 @@ message DataUploadRequest {
     int32 content_type = 2;
     bytes content = 3;
     // string device_id = 4;
-    bool cache = 5;
+    bool realtime = 5;
     bool save = 6;
 }
 

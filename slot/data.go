@@ -22,6 +22,42 @@ func newDataService(ss *SlotService) *DataService {
 	}
 }
 
+func (s *DataService) Upload(ctx context.Context, in *slots.DataUploadRequest) (*slots.DataUploadResponse, error) {
+	var err error
+	var output slots.DataUploadResponse
+	output.Message = "Failed"
+
+	// basic validation
+	{
+		if in == nil {
+			return &output, status.Error(codes.InvalidArgument, "Please supply valid argument")
+		}
+	}
+
+	_, err = validateToken(ctx)
+	if err != nil {
+		return &output, err
+	}
+
+	request := &edges.DataUploadRequest{
+		Id:          in.GetId(),
+		ContentType: in.GetContentType(),
+		Content:     in.GetContent(),
+		Realtime:    in.GetRealtime(),
+		Save:        in.GetSave(),
+	}
+
+	reply, err := s.ss.Edge().GetData().Upload(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	output.Id = reply.GetId()
+	output.Message = reply.GetMessage()
+
+	return &output, nil
+}
+
 func (s *DataService) Compile(ctx context.Context, in *slots.DataQueryRequest) (*pb.Message, error) {
 	var err error
 	var output pb.Message

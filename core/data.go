@@ -27,15 +27,15 @@ import (
 type DataService struct {
 	cs *CoreService
 
-	tagValue *cache.Cache[nson.Value]
+	values *cache.Cache[nson.Value]
 
 	cores.UnimplementedDataServiceServer
 }
 
 func newDateService(cs *CoreService) *DataService {
 	return &DataService{
-		cs:       cs,
-		tagValue: cache.NewCache[nson.Value](nil),
+		cs:     cs,
+		values: cache.NewCache[nson.Value](nil),
 	}
 }
 
@@ -90,64 +90,6 @@ func (s *DataService) Upload(ctx context.Context, in *cores.DataUploadRequest) (
 	output.Message = "Success"
 
 	return &output, nil
-}
-
-func (s *DataService) SetTagValue(tagID string, value nson.Value) {
-	s.tagValue.Set(tagID, value, 0)
-}
-
-func (s *DataService) GetTagValue(tagID string) types.Option[cache.Value[nson.Value]] {
-	return s.tagValue.GetValue(tagID)
-}
-
-func (s *DataService) SetTagValue2(tag *model.Tag, value nson.Value) {
-	s.setTagValue(tag, value)
-}
-
-func (s *DataService) setTagValue(tag *model.Tag, value nson.Value) {
-	formatValue := func(src nson.Value) nson.Value {
-		switch value.Tag() {
-		case nson.TAG_F32:
-			return nson.F32(util.Round(float64(src.(nson.F32)), 3))
-		case nson.TAG_F64:
-			return nson.F64(util.Round(float64(src.(nson.F64)), 3))
-		default:
-			return src
-		}
-	}
-
-	updateValue := func(tag *model.Tag, value nson.Value) {
-		valueString, err := datatype.EncodeNsonValue(value)
-		if err != nil {
-			return
-		}
-
-		ctx := context.Background()
-
-		if err = s.cs.GetTag().setTagValueUpdated(ctx, tag, valueString, time.Now()); err != nil {
-			return
-		}
-
-		if err = s.cs.GetTag().afterUpdateValue(ctx, tag, valueString); err != nil {
-			return
-		}
-	}
-
-	value = formatValue(value)
-
-	if option := s.tagValue.Get(tag.ID); option.IsSome() {
-		oldvalue := option.Unwrap()
-
-		oldvalue = formatValue(oldvalue)
-
-		if oldvalue != value {
-			updateValue(tag, value)
-		}
-	} else {
-		updateValue(tag, value)
-	}
-
-	s.tagValue.Set(tag.ID, value, 0)
 }
 
 func (s *DataService) Compile(ctx context.Context, in *cores.DataQueryRequest) (*pb.Message, error) {
@@ -371,6 +313,64 @@ func (s *DataService) QueryById(in *cores.DataQueryByIdRequest, stream cores.Dat
 	return nil
 }
 
+func (s *DataService) SetValue(tagID string, value nson.Value) {
+	s.values.Set(tagID, value, 0)
+}
+
+func (s *DataService) GetValue(tagID string) types.Option[cache.Value[nson.Value]] {
+	return s.values.GetValue(tagID)
+}
+
+func (s *DataService) UpdateValue(tag *model.Tag, value nson.Value) {
+	s.updateValue(tag, value)
+}
+
+func (s *DataService) updateValue(tag *model.Tag, value nson.Value) {
+	formatValue := func(src nson.Value) nson.Value {
+		switch value.Tag() {
+		case nson.TAG_F32:
+			return nson.F32(util.Round(float64(src.(nson.F32)), 3))
+		case nson.TAG_F64:
+			return nson.F64(util.Round(float64(src.(nson.F64)), 3))
+		default:
+			return src
+		}
+	}
+
+	updateValue := func(tag *model.Tag, value nson.Value) {
+		valueString, err := datatype.EncodeNsonValue(value)
+		if err != nil {
+			return
+		}
+
+		ctx := context.Background()
+
+		if err = s.cs.GetTag().setTagValueUpdated(ctx, tag, valueString, time.Now()); err != nil {
+			return
+		}
+
+		if err = s.cs.GetTag().afterUpdateValue(ctx, tag, valueString); err != nil {
+			return
+		}
+	}
+
+	value = formatValue(value)
+
+	if option := s.values.Get(tag.ID); option.IsSome() {
+		oldvalue := option.Unwrap()
+
+		oldvalue = formatValue(oldvalue)
+
+		if oldvalue != value {
+			updateValue(tag, value)
+		}
+	} else {
+		updateValue(tag, value)
+	}
+
+	s.values.Set(tag.ID, value, 0)
+}
+
 func (s *DataService) uploadContentType1(ctx context.Context, in *cores.DataUploadRequest, _ *cores.DataUploadResponse) error {
 	// [TagID, Value, TagID, Value, ...]
 
@@ -452,9 +452,9 @@ func (s *DataService) uploadContentType1(ctx context.Context, in *cores.DataUplo
 			return err
 		}
 
-		// cache
-		if in.GetCache() {
-			s.setTagValue(&tag, value)
+		// realtime
+		if in.GetRealtime() {
+			s.updateValue(&tag, value)
 		}
 
 		// save
@@ -577,9 +577,9 @@ func (s *DataService) uploadContentType2(ctx context.Context, in *cores.DataUplo
 			return err
 		}
 
-		// cache
-		if in.GetCache() {
-			s.setTagValue(&tag, value)
+		// realtime
+		if in.GetRealtime() {
+			s.updateValue(&tag, value)
 		}
 
 		// save
@@ -836,9 +836,9 @@ func (s *DataService) uploadContentType12(ctx context.Context, in *cores.DataUpl
 			return err
 		}
 
-		// cache
-		if in.GetCache() {
-			s.setTagValue(&tag, value2)
+		// realtime
+		if in.GetRealtime() {
+			s.updateValue(&tag, value2)
 		}
 
 		// save

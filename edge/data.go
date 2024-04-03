@@ -27,15 +27,15 @@ import (
 type DataService struct {
 	es *EdgeService
 
-	tagValue *cache.Cache[nson.Value]
+	values *cache.Cache[nson.Value]
 
 	edges.UnimplementedDataServiceServer
 }
 
 func newDataService(es *EdgeService) *DataService {
 	return &DataService{
-		es:       es,
-		tagValue: cache.NewCache[nson.Value](nil),
+		es:     es,
+		values: cache.NewCache[nson.Value](nil),
 	}
 }
 
@@ -88,19 +88,19 @@ func (s *DataService) Upload(ctx context.Context, in *edges.DataUploadRequest) (
 	return &output, nil
 }
 
-func (s *DataService) SetTagValue(tagID string, value nson.Value) {
-	s.tagValue.Set(tagID, value, 0)
+func (s *DataService) SetValue(tagID string, value nson.Value) {
+	s.values.Set(tagID, value, 0)
 }
 
-func (s *DataService) GetTagValue(tagID string) types.Option[cache.Value[nson.Value]] {
-	return s.tagValue.GetValue(tagID)
+func (s *DataService) GetValue(tagID string) types.Option[cache.Value[nson.Value]] {
+	return s.values.GetValue(tagID)
 }
 
-func (s *DataService) SetTagValue2(tag *model.Tag, value nson.Value) {
-	s.setTagValue(tag, value)
+func (s *DataService) UpdateValue(tag *model.Tag, value nson.Value) {
+	s.updateValue(tag, value)
 }
 
-func (s *DataService) setTagValue(tag *model.Tag, value nson.Value) {
+func (s *DataService) updateValue(tag *model.Tag, value nson.Value) {
 	formatValue := func(src nson.Value) nson.Value {
 		switch value.Tag() {
 		case nson.TAG_F32:
@@ -131,7 +131,7 @@ func (s *DataService) setTagValue(tag *model.Tag, value nson.Value) {
 
 	value = formatValue(value)
 
-	if option := s.tagValue.Get(tag.ID); option.IsSome() {
+	if option := s.values.Get(tag.ID); option.IsSome() {
 		oldvalue := option.Unwrap()
 
 		oldvalue = formatValue(oldvalue)
@@ -143,7 +143,7 @@ func (s *DataService) setTagValue(tag *model.Tag, value nson.Value) {
 		updateValue(tag, value)
 	}
 
-	s.tagValue.Set(tag.ID, value, 0)
+	s.values.Set(tag.ID, value, 0)
 }
 
 func (s *DataService) Compile(ctx context.Context, in *edges.DataQueryRequest) (*pb.Message, error) {
@@ -443,9 +443,9 @@ func (s *DataService) uploadContentType1(ctx context.Context, in *edges.DataUplo
 			return err
 		}
 
-		// cache
-		if in.GetCache() {
-			s.setTagValue(&tag, value)
+		// realtime
+		if in.GetRealtime() {
+			s.updateValue(&tag, value)
 		}
 
 		// save
@@ -568,9 +568,9 @@ func (s *DataService) uploadContentType2(ctx context.Context, in *edges.DataUplo
 			return err
 		}
 
-		// cache
-		if in.GetCache() {
-			s.setTagValue(&tag, value)
+		// realtime
+		if in.GetRealtime() {
+			s.updateValue(&tag, value)
 		}
 
 		// save
@@ -827,9 +827,9 @@ func (s *DataService) uploadContentType12(ctx context.Context, in *edges.DataUpl
 			return err
 		}
 
-		// cache
-		if in.GetCache() {
-			s.setTagValue(&tag, value2)
+		// realtime
+		if in.GetRealtime() {
+			s.updateValue(&tag, value2)
 		}
 
 		// save

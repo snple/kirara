@@ -38,8 +38,6 @@ func (s *DataService) register(router gin.IRouter) {
 	group.GET("/query/:id", s.queryById)
 
 	group.PATCH("/upload1", s.upload1)
-
-	group.GET("/query_by_id/:id", s.queryById) // deprecated
 }
 
 func (s *DataService) compile(ctx *gin.Context) {
@@ -386,7 +384,7 @@ func (s *DataService) upload1(ctx *gin.Context) {
 
 		// cache
 		if params.Cache {
-			s.as.Core().GetData().SetTagValue2(&tag, value2)
+			s.as.Core().GetData().UpdateValue(&tag, value2)
 		}
 
 		// save

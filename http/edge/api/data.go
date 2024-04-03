@@ -8,9 +8,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/snple/kirara/consts"
+	"github.com/snple/kirara/db"
+	"github.com/snple/kirara/edge/model"
 	"github.com/snple/kirara/http/util"
+	"github.com/snple/kirara/http/util/binding"
+	"github.com/snple/kirara/pb"
 	modutil "github.com/snple/kirara/util"
+	"github.com/snple/kirara/util/datatype"
 	"github.com/snple/kirara/util/flux"
+	"github.com/snple/types"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type DataService struct {
@@ -29,6 +38,8 @@ func (s *DataService) register(router gin.IRouter) {
 	group.POST("/compile", s.compile)
 	group.POST("/query", s.query)
 	group.GET("/query/:id", s.queryById)
+
+	group.PATCH("/upload1", s.upload1)
 }
 
 func (s *DataService) compile(ctx *gin.Context) {
@@ -257,6 +268,149 @@ func (s *DataService) queryById(ctx *gin.Context) {
 		"flux": buffer.String(),
 		"rows": rows,
 	}))
+}
+
+func (s *DataService) upload1(ctx *gin.Context) {
+	const (
+		UPLOAD_TYPE_NAME    uint32 = 0
+		UPLOAD_TYPE_ADDRESS uint32 = 1
+	)
+
+	var params struct {
+		DeviceId  string         `json:"device_id"`
+		Cache     bool           `json:"cache"`
+		Save      bool           `json:"save"`
+		Timestamp uint32         `json:"ts"`     // 可选
+		Source    string         `json:"source"` // 可选，默认 ’source‘
+		Type      uint32         `json:"type"`   // 可选，默认 0
+		Values    map[string]any `json:"values"`
+	}
+
+	if err := ctx.MustBindWith(&params, binding.JSONUseNumber); err != nil {
+		ctx.JSON(util.Error(400, err.Error()))
+		return
+	}
+
+	device, err := s.as.Edge().GetDevice().View(ctx, &pb.MyEmpty{})
+	if err != nil {
+		if code, ok := status.FromError(err); ok {
+			if code.Code() == codes.NotFound {
+				ctx.JSON(util.Error(404, err.Error()))
+				return
+			}
+		}
+
+		ctx.JSON(util.Error(400, err.Error()))
+		return
+	}
+
+	if device.Status != consts.ON {
+		ctx.JSON(util.Error(412, "Device Status != ON"))
+		return
+	}
+
+	// timestamp
+	timestamp := time.Now().Unix()
+	if params.Timestamp > 0 {
+		timestamp = int64(params.Timestamp)
+	}
+
+	// source name
+	sourceName := consts.DEFAULT_SOURCE
+	if params.Source != "" {
+		sourceName = params.Source
+	}
+
+	// upload type
+	uploadType := UPLOAD_TYPE_NAME
+	if params.Type == UPLOAD_TYPE_NAME || params.Type == UPLOAD_TYPE_ADDRESS {
+		uploadType = params.Type
+	}
+
+	// get and check source
+	source, err := s.as.Edge().GetSource().ViewFromCacheByName(ctx, sourceName)
+	if err != nil {
+		if code, ok := status.FromError(err); ok {
+			if code.Code() == codes.NotFound {
+				ctx.JSON(util.Error(404, err.Error()))
+				return
+			}
+		}
+
+		ctx.JSON(util.Error(400, err.Error()))
+		return
+	}
+
+	if source.Status != consts.ON {
+		ctx.JSON(util.Error(412, "Source Status != ON"))
+		return
+	}
+
+	// InfluxDB writer
+	writer := types.None[*db.Writer]()
+	option := s.as.Edge().GetInfluxDB()
+	if option.IsSome() {
+		writer = types.Some(option.Unwrap().Writer(50))
+	}
+
+	for name, value := range params.Values {
+		// get and check tag
+		var tag model.Tag
+		if uploadType == UPLOAD_TYPE_ADDRESS {
+			tag, err = s.as.Edge().GetTag().ViewBySourceIDAndAddress(ctx, source.ID, name)
+		} else {
+			tag, err = s.as.Edge().GetTag().ViewBySourceIDAndName(ctx, source.ID, name)
+		}
+		if err != nil {
+			if code, ok := status.FromError(err); ok {
+				if code.Code() == codes.NotFound {
+					ctx.JSON(util.Error(404, err.Error()))
+					return
+				}
+			}
+
+			ctx.JSON(util.Error(400, err.Error()))
+			return
+		}
+
+		if tag.Status != consts.ON {
+			continue
+		}
+
+		// validation data type
+		value2, err := s.as.Edge().GetData().CheckDataTypeJson(&tag, value)
+		if err != nil {
+			ctx.JSON(util.Error(400, err.Error()))
+			return
+		}
+
+		// cache
+		if params.Cache {
+			s.as.Edge().GetData().UpdateValue(&tag, value2)
+		}
+
+		// save
+		if writer.IsSome() && params.Save && source.Save == consts.ON && tag.Save == consts.ON {
+			if value2, ok := datatype.NsonValueToFloat64(value2); ok {
+
+				point := s.as.Edge().GetData().NewPoint(&tag, value2, timestamp)
+
+				err = writer.Unwrap().Write(ctx, point)
+				if err != nil {
+					ctx.JSON(util.Error(500, fmt.Sprintf("Write: %v", err)))
+					return
+				}
+			}
+		}
+	}
+
+	if writer.IsSome() {
+		err = writer.Unwrap().Flush(ctx)
+		if err != nil {
+			ctx.JSON(util.Error(500, fmt.Sprintf("Flush: %v", err)))
+			return
+		}
+	}
 }
 
 func tryConvertTimeZone(before string) string {

@@ -36,12 +36,6 @@ func (s *TagService) register(router gin.IRouter) {
 	group.POST("/get_value", s.getValueByNames)
 	group.PATCH("/set_value", s.setValueByNames)
 	group.PATCH("/set_value_force", s.setValueByNamesForce)
-
-	group.GET("/get_by_name/:name", s.getByName)                       // deprecated
-	group.POST("/get_by_name", s.getByNames)                           // deprecated
-	group.POST("/get_value_by_name", s.getValueByNames)                // deprecated
-	group.POST("/set_value_by_name", s.setValueByNames)                // deprecated
-	group.POST("/set_value_by_name_unchecked", s.setValueByNamesForce) // deprecated
 }
 
 func (s *TagService) list(ctx *gin.Context) {
