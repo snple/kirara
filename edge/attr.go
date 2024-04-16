@@ -1171,7 +1171,7 @@ func (s *AttrService) getUploadValueRequest() (*nodes.AttrValueUploadRequest, er
 	array := nson.Array{}
 
 	for id, value := range values {
-		k, err := nson.MessageIdFromHex(id)
+		k, err := nson.IdFromHex(id)
 		if err != nil {
 			continue
 		}
