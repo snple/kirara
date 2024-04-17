@@ -623,6 +623,7 @@ SKIP:
 			Debug:   in.GetDebug(),
 			Created: time.UnixMicro(in.GetCreated()),
 			Updated: time.UnixMicro(in.GetUpdated()),
+			Deleted: time.UnixMicro(in.GetDeleted()),
 		}
 
 		_, err = s.es.GetDB().NewInsert().Model(&item).Exec(ctx)
